@@ -176,10 +176,12 @@ bun eval/effort-eval.ts report --days 7            # effort mix and token use ag
 ## Tests
 
 ```sh
-CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate .   # also writes the type declarations
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate .   # checks the manifest and the plugin shape
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test .
 bun e2e/e2e.ts [--model <id>] [scenario ...]                  # real headless sessions
 ```
+
+The engine's API declarations under `.claude-plugin/types/` are committed, so the typecheck runs against the API surface the mod was written for. `claude plugin validate` refreshes them on Claude Code 2.1.283 and later.
 
 `e2e/e2e.ts` runs real headless Claude Code sessions, each with its own log folder, and checks each request's effort in the transcript against the decision log. Most scenarios ask a local stand-in that holds requests to hosted Jev's contract: it refuses a wrong key, an unknown model and any field the contract does not have. Those scenarios cover the options and the environment variables, a rejected and a missing key, shadow mode, a classifier that is down or hangs, a launch effort set by hand, the headless default, off mode and a subagent. The `real-*` scenarios ask the classifier your `TYPESAFE_*` variables name, and check the prompt cache across a level change. They are skipped without `TYPESAFE_API_KEY`.
 
