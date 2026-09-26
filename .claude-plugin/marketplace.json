@@ -1,0 +1,17 @@
+{
+  "name": "effort-router",
+  "owner": {
+    "name": "Tim Kraus",
+    "url": "https://github.com/totally-tim"
+  },
+  "metadata": {
+    "description": "effort-router, a Claude Code mod that sets the reasoning effort of each turn."
+  },
+  "plugins": [
+    {
+      "name": "effort-router",
+      "source": "./",
+      "description": "Picks the reasoning effort for each turn with a System One classifier (hosted Jev or a compatible service) and shows it on the spinner."
+    }
+  ]
+}

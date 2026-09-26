@@ -1,0 +1,6 @@
+{
+  "description": "effort-router: turn.start stashes the prompt; turn.step asks a System One classifier about the first request of each main-conversation turn and, in enforce mode, rewrites its effort; tool.call counts failed tools to raise effort mid-turn; turn.complete logs one decision record per turn; ui.render adds the level to the spinner and the turn's closing line; /effort-router reports, switches mode and labels picks",
+  "modules": [
+    "./register.ts"
+  ]
+}

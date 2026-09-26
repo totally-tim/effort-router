@@ -1,0 +1,127 @@
+{
+  "name": "effort-router",
+  "version": "0.2.0",
+  "description": "Picks the reasoning effort for each turn of the main conversation with a System One classifier (hosted Jev or a compatible service) and shows the level on the spinner and on the line that closes the turn. In shadow mode it shows and logs its pick and sends the session's effort; in enforce mode it sends the pick. Requires CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1.",
+  "author": {
+    "name": "Tim Kraus",
+    "url": "https://github.com/totally-tim"
+  },
+  "userConfig": {
+    "mode": {
+      "type": "string",
+      "title": "Mode",
+      "description": "\"shadow\" (default): classify, show and log, but send the session's effort. \"enforce\": send the pick. \"off\": do nothing.",
+      "required": false,
+      "default": "shadow",
+      "options": [
+        "off",
+        "shadow",
+        "enforce"
+      ]
+    },
+    "floor": {
+      "type": "string",
+      "title": "Lowest effort",
+      "description": "The lowest effort level the router may pick.",
+      "required": false,
+      "default": "low",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    },
+    "ceiling": {
+      "type": "string",
+      "title": "Highest effort",
+      "description": "The highest effort level the router may pick. max stays manual.",
+      "required": false,
+      "default": "xhigh",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    },
+    "threshold": {
+      "type": "number",
+      "title": "Confidence threshold",
+      "description": "The router picks the lowest level whose cumulative probability reaches this value, so uncertain answers lean to higher effort.",
+      "required": false,
+      "default": 0.95,
+      "min": 0.5,
+      "max": 0.99
+    },
+    "ensemble": {
+      "type": "boolean",
+      "title": "Ensemble",
+      "description": "Ask the classifier with three contexts (the previous exchange; plus the two before it; plus how the last turn went) and average the answers. Up to three parallel calls on the first request of a turn.",
+      "required": false,
+      "default": true
+    },
+    "headless": {
+      "type": "boolean",
+      "title": "Route headless sessions",
+      "description": "Also route sessions without a person at the prompt (claude -p, the SDKs). Off by default: the eval measured only prompts people typed.",
+      "required": false,
+      "default": false
+    },
+    "baseUrl": {
+      "type": "string",
+      "title": "Classifier base URL",
+      "description": "The base URL of a System One service; the router posts to <base URL>/v1/systemone. Empty: TYPESAFE_BASE_URL, else hosted Jev at https://api.typesafe.ai.",
+      "required": false,
+      "default": ""
+    },
+    "model": {
+      "type": "string",
+      "title": "Classifier model",
+      "description": "The model each request names. Empty: TYPESAFE_DEFAULT_MODEL, else jev-latest.",
+      "required": false,
+      "default": ""
+    },
+    "keyFile": {
+      "type": "string",
+      "title": "Key file",
+      "description": "A file that holds the API key: a JSON object with the key under the key name, or the key alone. A leading ~ means the home directory. Empty: the key is TYPESAFE_API_KEY.",
+      "required": false,
+      "default": ""
+    },
+    "keyName": {
+      "type": "string",
+      "title": "Key name",
+      "description": "The field of a JSON key file that holds the API key.",
+      "required": false,
+      "default": "TYPESAFE_API_KEY"
+    },
+    "logDir": {
+      "type": "string",
+      "title": "Log directory",
+      "description": "Where the router writes one JSONL decision log per session. A leading ~ means the home directory.",
+      "required": false,
+      "default": "~/.local/state/effort-router"
+    },
+    "timeoutMs": {
+      "type": "number",
+      "title": "Classifier timeout (ms)",
+      "description": "How long the first request of a turn waits for the classifier before it goes out at the session's effort.",
+      "required": false,
+      "default": 5000,
+      "min": 200,
+      "max": 8000
+    }
+  },
+  "homepage": "https://github.com/totally-tim/effort-router",
+  "repository": "https://github.com/totally-tim/effort-router",
+  "license": "MIT",
+  "keywords": [
+    "effort",
+    "reasoning",
+    "routing",
+    "jev",
+    "system-one",
+    "mods"
+  ]
+}
