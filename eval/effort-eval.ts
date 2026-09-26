@@ -367,13 +367,17 @@ const LABEL_MODELS = ['deepseek-v4.1-flash', 'mimo-v2.6-pro', 'mimo-v2.6-flash']
  * Labels the sample with each model through `opencode run`, in parallel. Each
  * model works in its own folder on a copy of the sample without the recorded
  * effort, so no labeler sees another's labels. The prompt is
- * eval/labeler-prompt.md.
+ * eval/labeler-prompt.md, with the row count of this sample written into it,
+ * so a labeler can check it covered the file.
  */
 async function autolabel(): Promise<void> {
   const at = args.indexOf('--models')
   const models = at >= 0 ? String(args[at + 1]).split(',') : LABEL_MODELS
-  const prompt = readFileSync(join(import.meta.dir, 'labeler-prompt.md'), 'utf8')
   const rows = readJsonl<Prompt>(join(DATA, 'sample.jsonl')).map(p => ({ id: p.id, text: p.text, previous: p.previous }))
+  const prompt = readFileSync(join(import.meta.dir, 'labeler-prompt.md'), 'utf8').replace(
+    /`sample\.jsonl` has \d+ JSONL rows/,
+    `\`sample.jsonl\` has ${rows.length} JSONL rows`,
+  )
 
   await Promise.all(
     models.map(async model => {

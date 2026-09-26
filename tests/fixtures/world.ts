@@ -44,6 +44,11 @@ export type World = {
    * engine would draw it.
    */
   drawn: string[]
+  /**
+   * The environment variables read, in order: each session's re-read of the
+   * setup shows here.
+   */
+  envReads: string[]
   files: Map<string, string>
   records: (sessionId?: string) => Record<string, unknown>[]
   /**
@@ -64,10 +69,22 @@ export function world(on: On, options: WorldOptions = {}): World {
   const sent: (string | number | undefined)[] = []
   const said: string[] = []
   const drawn: string[] = []
+  const envReads: string[] = []
   const files = new Map<string, string>(Object.entries(options.files ?? {}))
   const answers = options.answers ?? [{ low: 0.98, medium: 0.02, high: 0, xhigh: 0 }]
 
-  mock.env(on, { HOME, ...(options.env ?? { TYPESAFE_API_KEY: 'k' }) })
+  // Answers the environment and records each lookup. One handler per event,
+  // so this fixture answers `env.get` itself instead of using `mock.env`.
+  const environment: Record<string, string | undefined> = {
+    HOME,
+    ...(options.env ?? { TYPESAFE_API_KEY: 'k' }),
+  }
+
+  on('env.get', ($, e) => {
+    envReads.push(e.name)
+
+    return { value: environment[e.name] }
+  })
 
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   const session = { id: 'the-session' }
@@ -166,5 +183,5 @@ export function world(on: On, options: WorldOptions = {}): World {
       .filter(Boolean)
       .map(line => JSON.parse(line) as Record<string, unknown>)
 
-  return { clock, posts, sent, said, drawn, files, records, session }
+  return { clock, posts, sent, said, drawn, envReads, files, records, session }
 }

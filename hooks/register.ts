@@ -353,6 +353,12 @@ export function register(on: On, options: PluginOptions): void {
     closingNext = undefined
     closings.clear()
     said.clear()
+    // The key is part of the setup, and a session may have fixed it: a new
+    // session reads the key file and the environment again.
+    ready = undefined
+    key = undefined
+    keyProblem = undefined
+    keyDetail = undefined
   }
 
   function prepare(host: Host): Promise<void> {
@@ -435,12 +441,14 @@ export function register(on: On, options: PluginOptions): void {
       note = 'set by hand'
     } else if (last.yielded) {
       note = undefined
+    } else if (turn.reason?.startsWith('fallback')) {
+      // Said in every mode: a classifier that gave no answer is worth the
+      // note even in shadow, where nothing was rewritten.
+      note = `router: ${turn.reason.replace(/^fallback:?\s*/, '') || 'failed'}`
     } else if (mode === 'shadow') {
       const would = level ? raisedBy(level, escalationOf(turn.errors), config.ceiling) : undefined
 
       note = would && would !== last.sent ? `router: ${would}` : undefined
-    } else if (turn.reason?.startsWith('fallback')) {
-      note = `router: ${turn.reason.replace(/^fallback:?\s*/, '') || 'failed'}`
     } else if (level && last.would && rankOf(last.would) > rankOf(level)) {
       note = 'raised after failed tool calls'
     } else if (turn.raisedTo && turn.base && rankOf(turn.raisedTo) > rankOf(turn.base)) {
@@ -757,6 +765,15 @@ export function register(on: On, options: PluginOptions): void {
   })
 
   on('turn.complete', async ($, e, next) => {
+    // The line that closes this turn claims the phrase at its draw. Arm it
+    // again here: a closing line drawn while the turn ran, such as a
+    // subagent's, may have taken the arm set at the turn's first request.
+    const turnBefore = e.agentId === undefined ? turns.get(e.turnId) : undefined
+
+    if (turnBefore && turnBefore.steps.length > 0) {
+      closingNext = turnBefore
+    }
+
     const result = await next(e)
 
     if (e.agentId !== undefined) {

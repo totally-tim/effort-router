@@ -151,6 +151,21 @@ describe('register', () => {
     expect(w.said, 'nothing went wrong, so nothing is said in the transcript').toEqual([])
   })
 
+  test('a closing line drawn mid-turn leaves the turn its own label', async ($, on) => {
+    const w = world(on)
+
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'push the PR', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    // A subagent's turn closes while the main turn runs, and its line draws
+    // first.
+    await closing($, w.drawn, 'a-subagent-line')
+    await complete($, 't1')
+
+    expect(await closing($, w.drawn, 'line-1')).toBe('Baked at low effort')
+  })
+
   test('enforce sends the pick on every request of the turn', async ($, on) => {
     const w = world(on)
 
@@ -216,6 +231,19 @@ describe('register', () => {
     expect(w.records()[0]).toMatchObject({ reason: 'fallback: http 503', sent: 'xhigh' })
     expect(await closing($, w.drawn, 'line-1')).toBe('Baked at xhigh effort (router: http 503)')
     expect(await command($, 'status')).toContain('failing (http 503)')
+  })
+
+  test('shadow says when the classifier gave no answer, too', async ($, on) => {
+    const w = world(on, { answers: [503] })
+
+    await $.session.start(STARTED)
+    await $.turn.start({ text: 'refactor the parser', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    await complete($, 't1')
+
+    expect(w.sent).toEqual(['xhigh'])
+    expect(w.records()[0]).toMatchObject({ mode: 'shadow', reason: 'fallback: http 503' })
+    expect(await closing($, w.drawn, 'line-1')).toBe('Baked at xhigh effort (router: http 503)')
   })
 
   test('a classifier that does not answer in time keeps the session effort', async ($, on) => {
@@ -602,6 +630,29 @@ describe('register', () => {
     expect(w.records().map(record => record.turnId)).toEqual(['t1'])
     expect(w.records('after-clear')).toMatchObject([{ turnId: 't2', reason: 'fallback: no previous pick' }])
     expect(w.sent).toEqual(['low', 'xhigh'])
+  })
+
+  test('a new session resolves the key again', async ($, on) => {
+    const w = world(on)
+
+    await $.session.start(STARTED)
+    await $.turn.start({ text: 'push the PR', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    await complete($, 't1')
+
+    // `/clear` in the same process; the key file or the environment may have
+    // been fixed since the first session read it.
+    w.session.id = 'after-clear'
+    await $.session.start(STARTED)
+    await $.turn.start({ text: 'push the PR', turnId: 't2' })
+    await step($, 't2', 0, 'xhigh')
+    await complete($, 't2')
+
+    expect(
+      w.envReads.filter(name => name === 'TYPESAFE_API_KEY'),
+      'each session reads the key once',
+    ).toHaveLength(2)
+    expect(w.posts, 'the second session classifies').toHaveLength(2)
   })
 
   test('a tool failure that settles after its turn ended counts nowhere', async ($, on) => {
