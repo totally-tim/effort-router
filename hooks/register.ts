@@ -8,21 +8,24 @@ import {
   DEFAULT_MODEL,
   classifyAll,
   isClassified,
+  inputVariants,
   systemOneUrlOf,
 } from './classify'
 import { DecisionLog } from './decision-log'
+import { addObservation, boundedContext, needsConcurrencyReasoning, observationOf, repositoryOf, type Repository, type Task, type TaskContext } from './context'
 import type { Host, SystemOneEnv } from './host'
 import {
   CHOICES,
   type Level,
   type Probabilities,
   cueFloorOf,
+  clamp,
   escalationOf,
   higherOf,
   isLevel,
-  pickOf,
   raisedBy,
   rankOf,
+  routeOf,
 } from './policy'
 
 export const COMMAND_NAME = 'effort-router'
@@ -63,6 +66,8 @@ type StepRecord = {
   sent?: Effort
   would?: Level
   yielded?: true
+  durationMs?: number
+  usage?: { input: number; output: number; cacheRead: number; cacheWrite: number }
 }
 
 type Verdict = {
@@ -70,8 +75,14 @@ type Verdict = {
   reason: string
   cue?: Level
   probabilities?: Probabilities
+  workProbabilities?: Probabilities
+  workLevel?: Level
+  evidenceFloor?: Level
   confidence?: number
   latencyMs?: number
+  contextSufficient?: boolean
+  missing?: string[]
+  continuation?: boolean
 }
 
 type MidTurnRecord = {
@@ -91,6 +102,9 @@ type Turn = {
   reason?: string
   cue?: Level
   probabilities?: Probabilities
+  workProbabilities?: Probabilities
+  workLevel?: Level
+  evidenceFloor?: Level
   confidence?: number
   latencyMs?: number
   decided?: Promise<void>
@@ -101,6 +115,15 @@ type Turn = {
   errors: number
   steps: StepRecord[]
   usage: { input: number; output: number; cacheRead: number; cacheWrite: number }
+  context?: TaskContext
+  contextSufficient?: boolean
+  missing?: string[]
+  continuation?: boolean
+  evidenceVersion: number
+  checkedVersion: number
+  hasActed: boolean
+  discovery: Verdict[]
+  discovering?: Promise<void>
 }
 
 /**
@@ -197,6 +220,7 @@ function hostOf($: EngineInterface): Host {
       return typeof level === 'string' ? level : undefined
     },
     sessionId: () => $.session.id(),
+    cwd: () => $.session.cwd(),
     registerCommand: spec => $.command.register(spec),
     redraw: () => $.ui.invalidate('ui.render'),
     say: text => $.ui.log(text),
@@ -269,6 +293,8 @@ export function register(on: On, options: PluginOptions): void {
   let history: { request: string; answer?: string }[] = []
   let lastTurn: ClassifyInput['previousTurn']
   let lastLevel: Level | undefined
+  let previousTask: Task | undefined
+  let repository: Repository | undefined
   let isInteractive: boolean | undefined
 
   /**
@@ -344,6 +370,8 @@ export function register(on: On, options: PluginOptions): void {
     history = []
     lastTurn = undefined
     lastLevel = undefined
+    previousTask = undefined
+    repository = undefined
     baseline = undefined
     currentTurnId = undefined
     lastRecord = undefined
@@ -455,6 +483,8 @@ export function register(on: On, options: PluginOptions): void {
       note = 'raised by your message'
     } else if (turn.reason === 'cue') {
       note = 'you asked to think hard'
+    } else if (turn.reason === 'insufficient context') {
+      note = 'router: needs context'
     }
 
     return `at ${String(last.sent)} effort${note ? ` (${note})` : ''}`
@@ -472,9 +502,8 @@ export function register(on: On, options: PluginOptions): void {
    * The level one piece of typed text needs. Never rejects: without an answer
    * the level is the cue's, if any, else unset.
    */
-  async function verdictOf(host: Host, inputs: readonly ClassifyInput[]): Promise<Verdict> {
+  async function verdictOf(host: Host, inputs: readonly ClassifyInput[], seen?: Effort): Promise<Verdict> {
     const cue = cueFloorOf(inputs[0]?.request ?? '')
-    const floor = cue ? higherOf(config.floor, cue) : config.floor
 
     // Without a key the router is not set up and changes nothing. A paused or
     // failing classifier still honors a deep-reasoning phrase: those are the
@@ -512,14 +541,14 @@ export function register(on: On, options: PluginOptions): void {
 
     health = `ok (${result.latencyMs} ms)`
 
-    const unforced = pickOf(result.probabilities, config.threshold, config.floor, config.ceiling)
-    const level = pickOf(result.probabilities, config.threshold, floor, higherOf(config.ceiling, floor))
+    const routed = routeOf(result, inputs[0]!, isLevel(seen) ? seen : isLevel(baseline) ? baseline : config.ceiling,
+      config.threshold, config.floor, config.ceiling)
 
     return {
-      level,
+      ...routed,
       cue,
-      reason: rankOf(level) > rankOf(unforced) ? 'cue' : 'classifier',
       probabilities: result.probabilities,
+      workProbabilities: result.workProbabilities,
       confidence: result.confidence,
       latencyMs: result.latencyMs,
     }
@@ -531,19 +560,17 @@ export function register(on: On, options: PluginOptions): void {
    * it, and the same plus how the last turn went. The eval chose this mean of
    * three contexts as the most reliable against under-thinking.
    */
-  function inputsOf(text: string): ClassifyInput[] {
+  function inputsOf(text: string, context?: TaskContext, continuesTask?: boolean): ClassifyInput[] {
     const previousExchange = history.at(-1)
     const base: ClassifyInput = {
       request: text,
       previousRequest: previousExchange?.request,
       previousAnswer: previousExchange?.answer,
+      context,
+      continuesTask,
     }
 
-    if (!config.ensemble) {
-      return [base]
-    }
-
-    return [base, { ...base, earlier: history.slice(0, -1).slice(-2) }, { ...base, previousTurn: lastTurn }]
+    return inputVariants({ ...base, earlier: history.slice(0, -1).slice(-2), previousTurn: lastTurn }, config.ensemble)
   }
 
   /**
@@ -551,6 +578,15 @@ export function register(on: On, options: PluginOptions): void {
    * the previous pick over to a turn that started without one.
    */
   async function decide(host: Host, turn: Turn): Promise<void> {
+    const cwd = await host.cwd().catch(() => repository?.cwd ?? '')
+    if (turns.get(turn.turnId) !== turn) return
+    if (!repository || repository.cwd !== cwd) {
+      const collected = cwd ? await repositoryOf(cwd, async path => await host.exists(path) ? host.readText(path) : undefined) : { cwd, summary: '' }
+      if (turns.get(turn.turnId) !== turn) return
+      if (repository && repository.cwd !== cwd) { previousTask = undefined; history = []; lastLevel = undefined }
+      repository = collected
+    }
+    turn.context = boundedContext({ repository, observations: [], ...(previousTask ? { previousTask } : {}) })
     if (turn.text.trim() === '') {
       turn.base = lastLevel
       turn.reason = lastLevel ? 'inherit' : 'fallback: no previous pick'
@@ -558,14 +594,69 @@ export function register(on: On, options: PluginOptions): void {
       return
     }
 
-    const verdict = await verdictOf(host, inputsOf(turn.text))
+    const verdict = await verdictOf(host, inputsOf(turn.text, turn.context), turn.stepZeroEffort)
 
     turn.base = verdict.level
     turn.reason = verdict.reason
     turn.cue = verdict.cue
     turn.probabilities = verdict.probabilities
+    turn.workProbabilities = verdict.workProbabilities
+    turn.workLevel = verdict.workLevel
+    turn.evidenceFloor = verdict.evidenceFloor
     turn.confidence = verdict.confidence
     turn.latencyMs = verdict.latencyMs
+    turn.contextSufficient = verdict.contextSufficient
+    turn.missing = verdict.missing
+    turn.continuation = verdict.continuation
+  }
+
+  function retainForUnassessedEvidence(turn: Turn, reason: string): void {
+    if (turn.manual || !turn.context) return
+    // Later, unassessed source must not silently keep an earlier low pick.
+    const retained = isLevel(turn.stepZeroEffort) ? turn.stepZeroEffort : config.ceiling
+    turn.base = higherOf(levelOf(turn) ?? retained, retained)
+    const previous = turn.continuation ? turn.context.previousTask : undefined
+    if (needsConcurrencyReasoning(`${turn.text}\n${previous?.request ?? ''}`, [...turn.context.observations, ...(previous?.observations ?? [])])) {
+      turn.evidenceFloor = clamp('high', config.floor, config.ceiling)
+      turn.base = higherOf(turn.base, turn.evidenceFloor)
+    }
+    turn.reason = reason
+    turn.contextSufficient = false
+    turn.missing = ['unassessed_evidence']
+  }
+
+  async function discover(host: Host, turn: Turn): Promise<void> {
+    if (!turn.text.trim() || !turn.context || turn.evidenceVersion === turn.checkedVersion || turn.manual) return
+    turn.checkedVersion = turn.evidenceVersion
+    if (turn.discovery.length >= 2) {
+      retainForUnassessedEvidence(turn, 'discovery budget exhausted')
+      return
+    }
+    const context = boundedContext(turn.context)
+    const verdict = await verdictOf(host, inputsOf(turn.text, context, turn.continuation), turn.stepZeroEffort)
+    if (turns.get(turn.turnId) !== turn) return
+    if (verdict.level === undefined) {
+      retainForUnassessedEvidence(turn, `fallback: discovery ${verdict.reason.replace(/^fallback:\s*/, '')}`)
+      turn.discovery.push(verdict)
+      refresh(host)
+      return
+    }
+    const current = levelOf(turn) ?? (isLevel(turn.stepZeroEffort) ? turn.stepZeroEffort : undefined)
+    const canLower = turn.contextSufficient === false && verdict.contextSufficient === true && !turn.hasActed
+    if (verdict.level && (!current || canLower || rankOf(verdict.level) > rankOf(current))) {
+      turn.base = verdict.level
+      turn.reason = verdict.reason
+      turn.probabilities = verdict.probabilities
+      turn.workProbabilities = verdict.workProbabilities
+      turn.workLevel = verdict.workLevel
+      turn.evidenceFloor = verdict.evidenceFloor
+      turn.confidence = verdict.confidence
+      turn.contextSufficient = verdict.contextSufficient
+      turn.missing = verdict.missing
+      turn.continuation = verdict.continuation
+    }
+    turn.discovery.push(verdict)
+    refresh(host)
   }
 
   /**
@@ -574,8 +665,13 @@ export function register(on: On, options: PluginOptions): void {
    */
   async function reconsider(host: Host, turn: Turn, text: string): Promise<void> {
     await turn.decided
+    if (turns.get(turn.turnId) !== turn) return
 
-    const verdict = await verdictOf(host, [{ request: text, previousRequest: turn.text }])
+    const verdict = await verdictOf(host, [{ request: text, previousRequest: turn.text,
+      context: { ...turn.context, observations: turn.context?.observations ?? [], previousTask: {
+        request: turn.text, level: levelOf(turn), observations: turn.context?.observations ?? [],
+      } } }], turn.stepZeroEffort)
+    if (turns.get(turn.turnId) !== turn) return
     const current = levelOf(turn) ?? (isLevel(turn.stepZeroEffort) ? turn.stepZeroEffort : undefined)
     const isRaised =
       verdict.level !== undefined && current !== undefined && rankOf(verdict.level) > rankOf(current)
@@ -608,6 +704,10 @@ export function register(on: On, options: PluginOptions): void {
         errors: 0,
         steps: [],
         usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        evidenceVersion: 0,
+        checkedVersion: 0,
+        hasActed: false,
+        discovery: [],
       }
       turns.set(turnId, turn)
     }
@@ -695,26 +795,49 @@ export function register(on: On, options: PluginOptions): void {
       await Promise.race([turn.reconsidered, host.sleep(config.timeoutMs)])
     }
 
+    if (!isFirst && turn.isSettled) {
+      const canWait = mode !== 'enforce' || next.budget.remainingMs > config.timeoutMs + SETTLE_MARGIN_MS
+      if (!canWait && turn.evidenceVersion !== turn.checkedVersion) {
+        retainForUnassessedEvidence(turn, 'discovery deferred: hook budget')
+      } else if (!turn.discovering && canWait) {
+        turn.discovering = discover(host, turn).catch(() => undefined).finally(() => { turn.discovering = undefined })
+      }
+      if (mode === 'enforce' && canWait) await turn.discovering
+    }
+
     const isYielded = !isFirst && e.effort !== turn.stepZeroEffort
     const level = levelOf(turn)
     const would = level ? raisedBy(level, escalationOf(turn.errors), config.ceiling) : undefined
     const sent = mode === 'enforce' && would && !isYielded && !turn.manual ? would : e.effort
 
-    turn.steps.push({
+    const stepRecord: StepRecord = {
       index: e.index,
       seen: e.effort,
       sent,
       ...(would ? { would } : {}),
       ...(isYielded ? { yielded: true as const } : {}),
-    })
+    }
+    turn.steps.push(stepRecord)
+    if (mode === 'shadow' && turn.discovering) {
+      const escalations = escalationOf(turn.errors)
+      void turn.discovering.then(() => {
+        if (turns.get(turn.turnId) !== turn) return
+        const predicted = levelOf(turn)
+        if (predicted) stepRecord.would = raisedBy(predicted, escalations, config.ceiling)
+      })
+    }
 
     if (isFirst || sent !== turn.steps[turn.steps.length - 2]?.sent) {
       refresh(host)
     }
 
+    const started = await host.now()
     const result = yield* next(sent === e.effort ? e : { ...e, effort: sent })
+    stepRecord.durationMs = Math.max(0, (await host.now()) - started)
 
     if (result?.usage) {
+      stepRecord.usage = { input: result.usage.input_tokens, output: result.usage.output_tokens,
+        cacheRead: result.usage.cache_read_input_tokens, cacheWrite: result.usage.cache_creation_input_tokens }
       turn.usage.input += result.usage.input_tokens
       turn.usage.output += result.usage.output_tokens
       turn.usage.cacheRead += result.usage.cache_read_input_tokens
@@ -755,10 +878,20 @@ export function register(on: On, options: PluginOptions): void {
     const turn = e.agentId === undefined && currentTurnId ? turns.get(currentTurnId) : undefined
     const result = await next(e)
 
-    const isFailed = (result as { isError?: boolean } | undefined)?.isError === true
+    const toolResult = result as { isError?: boolean; text?: string; deny?: string; isReadOnly?: boolean } | undefined
+    const isFailed = toolResult?.isError === true || typeof toolResult?.deny === 'string'
 
-    if (isFailed && turn && turns.get(turn.turnId) === turn) {
-      turn.errors += 1
+    if (turn && turns.get(turn.turnId) === turn) {
+      if (toolResult?.isError === true) turn.errors += 1
+      if (!toolResult?.deny && !['Read', 'Grep', 'Glob'].includes(e.tool) && toolResult?.isReadOnly !== true) turn.hasActed = true
+      const observation = observationOf(e.tool, e as unknown as Record<string, unknown>, toolResult?.text ?? '', isFailed)
+      if (observation && turn.context) {
+        const updated = addObservation(turn.context.observations, observation)
+        if (JSON.stringify(updated) !== JSON.stringify(turn.context.observations)) {
+          turn.context.observations = updated
+          if (observation.tool !== 'Glob') turn.evidenceVersion += 1
+        }
+      }
     }
 
     return result
@@ -784,11 +917,12 @@ export function register(on: On, options: PluginOptions): void {
     const turn = turns.get(e.turnId)
 
     if (turn && turn.steps.length > 0) {
-      const pending = [turn.decided, turn.reconsidered].filter(Boolean)
+      const pending = [turn.decided, turn.reconsidered, turn.discovering].filter(Boolean)
 
       if (pending.length > 0) {
         await Promise.race([Promise.all(pending), host.sleep(Math.min(config.timeoutMs + SETTLE_MARGIN_MS, SETTLE_MAX_MS))])
       }
+      if (turns.get(turn.turnId) !== turn) return result
 
       lastRecord = {
         type: 'turn',
@@ -798,6 +932,9 @@ export function register(on: On, options: PluginOptions): void {
         prompt_len: turn.text.length,
         prompt_head: turn.text.slice(0, 200),
         probabilities: turn.probabilities,
+        work_probabilities: turn.workProbabilities,
+        work_level: turn.workLevel,
+        evidence_floor: turn.evidenceFloor,
         confidence: turn.confidence,
         latency_ms: turn.latencyMs,
         cue: turn.cue,
@@ -810,6 +947,11 @@ export function register(on: On, options: PluginOptions): void {
         sent: turn.steps[0]?.sent,
         steps: turn.steps,
         tool_errors: turn.errors,
+        context_sufficient: turn.contextSufficient,
+        missing_context: turn.missing,
+        continuation: turn.continuation,
+        discovery: turn.discovery,
+        evidence: turn.context?.observations.map(o => ({ tool: o.tool, target: o.target, chars: o.text.length })),
         outcome: {
           reason: e.reason,
           duration_ms: e.durationMs,
@@ -824,7 +966,13 @@ export function register(on: On, options: PluginOptions): void {
       }
 
       lastTurn = { toolErrors: turn.errors, requests: turn.steps.length, interrupted: e.isAborted }
-      lastLevel = levelOf(turn) ?? lastLevel
+      const inherited = turn.steps.at(-1)?.would ?? levelOf(turn) ?? lastLevel
+      lastLevel = inherited ? clamp(inherited, config.floor, config.ceiling) : undefined
+      if (turn.text.trim() !== '') previousTask = {
+        request: turn.continuation && turn.context?.previousTask ? `${turn.context.previousTask.request}\nFollow-up: ${turn.text}` : turn.text,
+        answer: e.answer, level: lastLevel,
+        observations: [...(turn.continuation ? turn.context?.previousTask?.observations ?? [] : []), ...(turn.context?.observations ?? [])].slice(-4),
+      }
     }
 
     turns.delete(e.turnId)

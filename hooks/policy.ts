@@ -1,3 +1,6 @@
+import type { Answer, ClassifyInput } from './classify'
+import { hasRoutingInstruction, hasTargetEvidence, hasUnresolvedReference, isContinuation, isSelfContainedReply, needsConcurrencyReasoning } from './context'
+
 /**
  * The effort levels the API accepts, from least to most thinking.
  */
@@ -93,4 +96,38 @@ export function raisedBy(level: Level, steps: number, ceiling: Level): Level {
   const raised = LEVELS[Math.min(rankOf(level) + steps, LEVELS.length - 1)]
 
   return clamp(raised ?? level, 'low', higherOf(ceiling, level))
+}
+
+/** Shared by replay and live routing; confidence cannot replace absent evidence. */
+export function routeOf(answer: Answer, input: ClassifyInput, baseline: Level, threshold: number, floor: Level, ceiling: Level): {
+  level: Level; workLevel?: Level; evidenceFloor?: Level; reason: string; contextSufficient: boolean; missing: string[]; continuation: boolean
+} {
+  const continuation = input.continuesTask === true || isContinuation(input.request) || answer.relation === 'continuation'
+  const previous = continuation ? input.context?.previousTask : undefined
+  const observations = [...(input.context?.observations ?? []), ...(previous?.observations ?? [])]
+  const missing: string[] = []
+  if (!answer.workProbabilities) missing.push('missing_work_assessment')
+  if (!answer.contextSufficient) missing.push(answer.context.startsWith('missing_') ? answer.context : 'uncertain_context')
+  if (hasUnresolvedReference(input.request) && !hasTargetEvidence(observations) && !previous) missing.push('missing_target')
+  if (continuation && !previous && !input.previousRequest) missing.push('missing_previous_task')
+  const suppliedPrevious = input.context?.previousTask
+  const untrustedText = [input.context?.repository?.summary ?? '', suppliedPrevious?.answer ?? '',
+    ...(input.context?.observations ?? []).map(o => o.text), ...(suppliedPrevious?.observations ?? []).map(o => o.text)]
+  if (!isSelfContainedReply(input.request) && untrustedText.some(hasRoutingInstruction)) missing.push('untrusted_routing_instruction')
+  const contextSufficient = missing.length === 0
+  const cue = cueFloorOf(input.request)
+  const lower = cue ? higherOf(floor, cue) : floor
+  let level = pickOf(answer.probabilities, threshold, lower, higherOf(ceiling, lower))
+  const workLevel = answer.workProbabilities ? pickOf(answer.workProbabilities, threshold, floor, ceiling) : undefined
+  const workRaised = workLevel !== undefined && rankOf(workLevel) > rankOf(level)
+  if (workLevel) level = higherOf(level, workLevel)
+  const evidenceFloor = needsConcurrencyReasoning(`${input.request}\n${previous?.request ?? ''}`, observations)
+    ? clamp('high', floor, ceiling) : undefined
+  const evidenceRaised = evidenceFloor !== undefined && rankOf(evidenceFloor) > rankOf(level)
+  if (evidenceFloor) level = higherOf(level, evidenceFloor)
+  // Missing context prevents a downgrade, but must not suppress a justified raise.
+  if (!contextSufficient) level = higherOf(level, baseline)
+  if (continuation && isLevel(previous?.level)) level = higherOf(level, clamp(previous.level, 'low', ceiling))
+  return { level, workLevel, evidenceFloor, contextSufficient, missing: [...new Set(missing)], continuation,
+    reason: !contextSufficient ? 'insufficient context' : continuation && isLevel(previous?.level) && level === previous.level ? 'continue task' : cue ? 'cue' : evidenceRaised ? 'concurrency evidence' : workRaised ? 'task complexity' : 'classifier' }
 }

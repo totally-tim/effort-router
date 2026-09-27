@@ -29,6 +29,8 @@ export type WorldOptions = {
    * Effort levels saved per model under `modelSettings`; none when absent.
    */
   saved?: Readonly<Record<string, string>>
+  contexts?: readonly ('sufficient' | 'missing_target' | 'missing_scope' | 'missing_evidence')[]
+  relations?: readonly ('new' | 'continuation')[]
 }
 
 export type World = {
@@ -90,6 +92,7 @@ export function world(on: On, options: WorldOptions = {}): World {
   const session = { id: 'the-session' }
 
   on('session.id', () => ({ value: session.id }))
+  on('session.cwd', () => ({ value: '/work' }))
   on('settings.read', () => ({
     value: {
       modelSettings: Object.fromEntries(
@@ -147,9 +150,16 @@ export function world(on: On, options: WorldOptions = {}): World {
       probabilities = answer.answer as Probabilities
     }
 
+    const context = options.contexts?.[Math.min(posts.length, options.contexts.length) - 1] ?? 'sufficient'
+    const relation = options.relations?.[Math.min(posts.length, options.relations.length) - 1] ?? 'new'
     const text = JSON.stringify({
       model: 'jev-1.13.0',
-      answers: { effort: { type: 'choice', choice: 'low', probabilities, confidence: 0.5 } },
+      answers: {
+        effort: { type: 'choice', choice: 'low', probabilities, confidence: 0.5 },
+        context: { type: 'choice', choice: context, probabilities: { [context]: 1 } },
+        relation: { type: 'choice', choice: relation, probabilities: { [relation]: 1 } },
+        work: { type: 'choice', choice: 'mechanical', probabilities: { mechanical: 1 } },
+      },
     })
 
     return { value: { status: 200, ok: true, headers: {}, text } }

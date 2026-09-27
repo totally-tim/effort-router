@@ -31,6 +31,7 @@ export type Host = {
    */
   savedEffort: (model: string) => Promise<string | undefined>
   sessionId: () => Promise<string>
+  cwd: () => Promise<string>
   registerCommand: (spec: CommandSpec) => Promise<unknown>
   /**
    * Redraws the spinner and the turn lines the router labels.

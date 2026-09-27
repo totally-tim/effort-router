@@ -11,9 +11,12 @@ const ANSWER = JSON.stringify({
     effort: {
       type: 'choice',
       choice: 'low',
-      probabilities: { low: 0.66, medium: 0.33, high: 0, xhigh: 0 },
+      probabilities: { low: 0.66, medium: 0.34, high: 0, xhigh: 0 },
       confidence: 0.54,
     },
+    context: { choice: 'sufficient', probabilities: { sufficient: 1 } },
+    relation: { choice: 'new', probabilities: { new: 1 } },
+    work: { choice: 'mechanical', probabilities: { mechanical: 1 } },
   },
   usage: { input_tokens: 146, output_tokens: 8 },
 })
@@ -32,6 +35,7 @@ function hostWith(fetch: Host['fetch']): Host {
     systemOneEnv: async () => ({}),
     savedEffort: async () => undefined,
     sessionId: async () => 'session',
+    cwd: async () => '/work',
     registerCommand: async () => undefined,
     redraw: () => undefined,
     say: () => undefined,
@@ -54,7 +58,7 @@ describe('classify', () => {
     expect(body.model).toBe('jev-1.13.0')
   })
 
-  test('the request judges only the new prompt and keeps the state short', () => {
+  test('the request keeps the prompt and prior exchange bounded', () => {
     const body = requestOf({
       request: 'x'.repeat(5000),
       previousRequest: 'y'.repeat(2000),
@@ -88,8 +92,10 @@ describe('classify', () => {
   test('an answer reads choice, probabilities and confidence', () => {
     expect(answerOf(ANSWER)).toEqual({
       choice: 'low',
-      probabilities: { low: 0.66, medium: 0.33, high: 0, xhigh: 0 },
+      probabilities: { low: 0.66, medium: 0.34, high: 0, xhigh: 0 },
+      workProbabilities: { low: 1, medium: 0, high: 0, xhigh: 0 },
       confidence: 0.54,
+      context: 'sufficient', contextSufficient: true, relation: 'new',
     })
   })
 

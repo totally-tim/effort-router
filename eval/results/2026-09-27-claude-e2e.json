@@ -1,0 +1,2836 @@
+{
+  "date": "2026-09-27",
+  "claudeCode": "2.1.283",
+  "model": "claude-opus-5-5",
+  "classifier": "local-decide",
+  "routingVersion": "8fa8b162712178ff",
+  "fullSuite": {
+    "phase": "Before the final narrow review fixes; affected scenarios rerun below",
+    "results": [
+      {
+        "name": "real-uncommented-atomics",
+        "failures": [],
+        "seconds": 13
+      },
+      {
+        "name": "real-alarming-comment",
+        "failures": [],
+        "seconds": 8
+      },
+      {
+        "name": "credential-evidence",
+        "failures": [],
+        "seconds": 7
+      },
+      {
+        "name": "real-discovery-toy",
+        "failures": [],
+        "seconds": 8
+      },
+      {
+        "name": "real-discovery-kernel",
+        "failures": [],
+        "seconds": 19
+      },
+      {
+        "name": "real-unresolved",
+        "failures": [],
+        "seconds": 5
+      },
+      {
+        "name": "real-continuation",
+        "failures": [],
+        "seconds": 42
+      },
+      {
+        "name": "real-untrusted-evidence",
+        "failures": [],
+        "seconds": 8
+      },
+      {
+        "name": "real-mechanical",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "real-hard",
+        "failures": [],
+        "seconds": 20
+      },
+      {
+        "name": "real-cue",
+        "failures": [],
+        "seconds": 4
+      },
+      {
+        "name": "jev-options",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "jev-env",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "key-rejected",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "no-key",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "shadow",
+        "failures": [],
+        "seconds": 7
+      },
+      {
+        "name": "classifier-down",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "classifier-hangs",
+        "failures": [],
+        "seconds": 32
+      },
+      {
+        "name": "manual-launch",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "headless-default",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "off",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "subagent",
+        "failures": [],
+        "seconds": 12
+      }
+    ],
+    "realClassifierScenarios": 10,
+    "controlledClassifierScenarios": 12,
+    "flows": {
+      "real-uncommented-atomics": [
+        {
+          "mode": "enforce",
+          "work_level": "xhigh",
+          "evidence_floor": "high",
+          "reason": "task complexity",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 3267,
+              "usage": {
+                "input": 2,
+                "output": 162,
+                "cacheRead": 10118,
+                "cacheWrite": 20904
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 6451,
+              "usage": {
+                "input": 2,
+                "output": 571,
+                "cacheRead": 31022,
+                "cacheWrite": 334
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [
+            {
+              "level": "xhigh",
+              "workLevel": "xhigh",
+              "evidenceFloor": "high",
+              "contextSufficient": true,
+              "missing": [],
+              "continuation": false,
+              "reason": "task complexity",
+              "probabilities": {
+                "low": 0.48,
+                "medium": 0.46,
+                "high": 0.05000000000000001,
+                "xhigh": 0.01
+              },
+              "workProbabilities": {
+                "low": 0.04,
+                "medium": 0.5,
+                "high": 0.15,
+                "xhigh": 0.31
+              },
+              "confidence": 0.31,
+              "latencyMs": 211
+            }
+          ],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 10970,
+            "usage": {
+              "input": 4,
+              "output": 733,
+              "cacheRead": 41140,
+              "cacheWrite": 21238
+            }
+          }
+        }
+      ],
+      "real-alarming-comment": [
+        {
+          "mode": "enforce",
+          "work_level": "medium",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "medium",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 2262,
+              "usage": {
+                "input": 2,
+                "output": 112,
+                "cacheRead": 10118,
+                "cacheWrite": 20904
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "medium",
+              "would": "medium",
+              "durationMs": 2824,
+              "usage": {
+                "input": 2,
+                "output": 203,
+                "cacheRead": 31022,
+                "cacheWrite": 210
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [
+            {
+              "level": "medium",
+              "workLevel": "medium",
+              "contextSufficient": true,
+              "missing": [],
+              "continuation": false,
+              "reason": "classifier",
+              "probabilities": {
+                "low": 0.8811881188118812,
+                "medium": 0.10891089108910891,
+                "high": 0.009900990099009901,
+                "xhigh": 0
+              },
+              "workProbabilities": {
+                "low": 0.38999999999999996,
+                "medium": 0.61,
+                "high": 0,
+                "xhigh": 0
+              },
+              "confidence": 0.85,
+              "latencyMs": 159
+            }
+          ],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 6265,
+            "usage": {
+              "input": 4,
+              "output": 315,
+              "cacheRead": 41140,
+              "cacheWrite": 21114
+            }
+          }
+        }
+      ],
+      "credential-evidence": [
+        {
+          "mode": "enforce",
+          "work_level": "low",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 3335,
+              "usage": {
+                "input": 2,
+                "output": 219,
+                "cacheRead": 10118,
+                "cacheWrite": 20914
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 1075,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 31032,
+                "cacheWrite": 370
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [
+            {
+              "level": "xhigh",
+              "workLevel": "low",
+              "contextSufficient": true,
+              "missing": [],
+              "continuation": false,
+              "reason": "classifier",
+              "probabilities": {
+                "low": 0,
+                "medium": 0,
+                "high": 0.10000000000000002,
+                "xhigh": 0.9
+              },
+              "workProbabilities": {
+                "low": 1,
+                "medium": 0,
+                "high": 0,
+                "xhigh": 0
+              },
+              "confidence": 0.9,
+              "latencyMs": 0
+            }
+          ],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 5165,
+            "usage": {
+              "input": 4,
+              "output": 224,
+              "cacheRead": 41150,
+              "cacheWrite": 21284
+            }
+          }
+        }
+      ],
+      "real-discovery-toy": [
+        {
+          "mode": "enforce",
+          "work_level": "medium",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "medium",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 3291,
+              "usage": {
+                "input": 2,
+                "output": 183,
+                "cacheRead": 10118,
+                "cacheWrite": 20899
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "medium",
+              "would": "medium",
+              "durationMs": 2183,
+              "usage": {
+                "input": 2,
+                "output": 96,
+                "cacheRead": 31017,
+                "cacheWrite": 262
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [
+            {
+              "level": "medium",
+              "workLevel": "medium",
+              "contextSufficient": true,
+              "missing": [],
+              "continuation": false,
+              "reason": "classifier",
+              "probabilities": {
+                "low": 0.9499999999999998,
+                "medium": 0.05000000000000001,
+                "high": 0,
+                "xhigh": 0
+              },
+              "workProbabilities": {
+                "low": 0.66,
+                "medium": 0.34,
+                "high": 0,
+                "xhigh": 0
+              },
+              "confidence": 0.93,
+              "latencyMs": 193
+            }
+          ],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 6711,
+            "usage": {
+              "input": 4,
+              "output": 279,
+              "cacheRead": 41135,
+              "cacheWrite": 21161
+            }
+          }
+        }
+      ],
+      "real-discovery-kernel": [
+        {
+          "mode": "enforce",
+          "work_level": "medium",
+          "evidence_floor": "high",
+          "reason": "concurrency evidence",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "high",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 2908,
+              "usage": {
+                "input": 2,
+                "output": 229,
+                "cacheRead": 10118,
+                "cacheWrite": 20901
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "high",
+              "would": "high",
+              "durationMs": 14158,
+              "usage": {
+                "input": 2,
+                "output": 1400,
+                "cacheRead": 31019,
+                "cacheWrite": 533
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [
+            {
+              "level": "high",
+              "workLevel": "medium",
+              "evidenceFloor": "high",
+              "contextSufficient": true,
+              "missing": [],
+              "continuation": false,
+              "reason": "concurrency evidence",
+              "probabilities": {
+                "low": 0.7200000000000001,
+                "medium": 0.26,
+                "high": 0.02,
+                "xhigh": 0
+              },
+              "workProbabilities": {
+                "low": 0.06060606060606061,
+                "medium": 0.9292929292929294,
+                "high": 0.010101010101010102,
+                "xhigh": 0
+              },
+              "confidence": 0.63,
+              "latencyMs": 174
+            }
+          ],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 17828,
+            "usage": {
+              "input": 4,
+              "output": 1629,
+              "cacheRead": 41137,
+              "cacheWrite": 21434
+            }
+          }
+        }
+      ],
+      "real-unresolved": [
+        {
+          "mode": "enforce",
+          "work_level": "high",
+          "reason": "insufficient context",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 2790,
+              "usage": {
+                "input": 2,
+                "output": 163,
+                "cacheRead": 1441,
+                "cacheWrite": 6720
+              }
+            }
+          ],
+          "context_sufficient": false,
+          "missing_context": [
+            "missing_target"
+          ],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 3523,
+            "usage": {
+              "input": 2,
+              "output": 163,
+              "cacheRead": 1441,
+              "cacheWrite": 6720
+            }
+          }
+        }
+      ],
+      "real-continuation": [
+        {
+          "mode": "enforce",
+          "work_level": "xhigh",
+          "reason": "cue",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 20343,
+              "usage": {
+                "input": 2,
+                "output": 1910,
+                "cacheRead": 1441,
+                "cacheWrite": 6755
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 21130,
+            "usage": {
+              "input": 2,
+              "output": 1910,
+              "cacheRead": 1441,
+              "cacheWrite": 6755
+            }
+          }
+        },
+        {
+          "mode": "enforce",
+          "work_level": "high",
+          "reason": "continue task",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 17366,
+              "usage": {
+                "input": 2,
+                "output": 1541,
+                "cacheRead": 8196,
+                "cacheWrite": 1965
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": true,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 17830,
+            "usage": {
+              "input": 2,
+              "output": 1541,
+              "cacheRead": 8196,
+              "cacheWrite": 1965
+            }
+          }
+        },
+        {
+          "mode": "enforce",
+          "work_level": "low",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "low",
+          "sent": "low",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "low",
+              "would": "low",
+              "durationMs": 1510,
+              "usage": {
+                "input": 2,
+                "output": 4,
+                "cacheRead": 10161,
+                "cacheWrite": 1578
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 1853,
+            "usage": {
+              "input": 2,
+              "output": 4,
+              "cacheRead": 10161,
+              "cacheWrite": 1578
+            }
+          }
+        }
+      ],
+      "real-untrusted-evidence": [
+        {
+          "mode": "enforce",
+          "work_level": "medium",
+          "reason": "insufficient context",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 2472,
+              "usage": {
+                "input": 2,
+                "output": 177,
+                "cacheRead": 10118,
+                "cacheWrite": 20912
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 2964,
+              "usage": {
+                "input": 2,
+                "output": 163,
+                "cacheRead": 31030,
+                "cacheWrite": 272
+              }
+            }
+          ],
+          "context_sufficient": false,
+          "missing_context": [
+            "missing_evidence",
+            "missing_target"
+          ],
+          "continuation": false,
+          "discovery": [
+            {
+              "level": "xhigh",
+              "workLevel": "medium",
+              "contextSufficient": false,
+              "missing": [
+                "untrusted_routing_instruction"
+              ],
+              "continuation": false,
+              "reason": "insufficient context",
+              "probabilities": {
+                "low": 0.89,
+                "medium": 0.06,
+                "high": 0.03,
+                "xhigh": 0.02
+              },
+              "workProbabilities": {
+                "low": 0.8282828282828283,
+                "medium": 0.17171717171717174,
+                "high": 0,
+                "xhigh": 0
+              },
+              "confidence": 0.85,
+              "latencyMs": 187
+            }
+          ],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 6430,
+            "usage": {
+              "input": 4,
+              "output": 340,
+              "cacheRead": 41148,
+              "cacheWrite": 21184
+            }
+          }
+        }
+      ],
+      "real-mechanical": [
+        {
+          "mode": "enforce",
+          "work_level": "low",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "low",
+          "sent": "low",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "low",
+              "would": "low",
+              "durationMs": 3023,
+              "usage": {
+                "input": 2,
+                "output": 74,
+                "cacheRead": 10118,
+                "cacheWrite": 20886
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "low",
+              "would": "low",
+              "durationMs": 729,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 31004,
+                "cacheWrite": 105
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 4524,
+            "usage": {
+              "input": 4,
+              "output": 79,
+              "cacheRead": 41122,
+              "cacheWrite": 20991
+            }
+          }
+        }
+      ],
+      "real-hard": [
+        {
+          "mode": "enforce",
+          "work_level": "xhigh",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 18245,
+              "usage": {
+                "input": 2,
+                "output": 1674,
+                "cacheRead": 1441,
+                "cacheWrite": 6738
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 18941,
+            "usage": {
+              "input": 2,
+              "output": 1674,
+              "cacheRead": 1441,
+              "cacheWrite": 6738
+            }
+          }
+        }
+      ],
+      "real-cue": [
+        {
+          "mode": "enforce",
+          "work_level": "low",
+          "reason": "cue",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 1521,
+              "usage": {
+                "input": 2,
+                "output": 33,
+                "cacheRead": 1441,
+                "cacheWrite": 6694
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 2246,
+            "usage": {
+              "input": 2,
+              "output": 33,
+              "cacheRead": 1441,
+              "cacheWrite": 6694
+            }
+          }
+        }
+      ],
+      "jev-options": [
+        {
+          "mode": "enforce",
+          "work_level": "low",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "low",
+          "sent": "low",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "low",
+              "would": "low",
+              "durationMs": 3130,
+              "usage": {
+                "input": 2,
+                "output": 74,
+                "cacheRead": 10118,
+                "cacheWrite": 20882
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "low",
+              "would": "low",
+              "durationMs": 734,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 31000,
+                "cacheWrite": 105
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 4310,
+            "usage": {
+              "input": 4,
+              "output": 79,
+              "cacheRead": 41118,
+              "cacheWrite": 20987
+            }
+          }
+        }
+      ],
+      "jev-env": [
+        {
+          "mode": "enforce",
+          "work_level": "low",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "low",
+          "sent": "low",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "low",
+              "would": "low",
+              "durationMs": 3188,
+              "usage": {
+                "input": 2,
+                "output": 74,
+                "cacheRead": 10118,
+                "cacheWrite": 20882
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "low",
+              "would": "low",
+              "durationMs": 828,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 31000,
+                "cacheWrite": 105
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 4450,
+            "usage": {
+              "input": 4,
+              "output": 79,
+              "cacheRead": 41118,
+              "cacheWrite": 20987
+            }
+          }
+        }
+      ],
+      "key-rejected": [
+        {
+          "mode": "enforce",
+          "reason": "fallback: http 401: key rejected",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "durationMs": 3145,
+              "usage": {
+                "input": 2,
+                "output": 74,
+                "cacheRead": 10118,
+                "cacheWrite": 20884
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "durationMs": 760,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 31002,
+                "cacheWrite": 105
+              }
+            }
+          ],
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 4171,
+            "usage": {
+              "input": 4,
+              "output": 79,
+              "cacheRead": 41120,
+              "cacheWrite": 20989
+            }
+          }
+        }
+      ],
+      "no-key": [
+        {
+          "mode": "enforce",
+          "reason": "fallback: no API key",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "durationMs": 3363,
+              "usage": {
+                "input": 2,
+                "output": 74,
+                "cacheRead": 10118,
+                "cacheWrite": 20880
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "durationMs": 740,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 30998,
+                "cacheWrite": 105
+              }
+            }
+          ],
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 4470,
+            "usage": {
+              "input": 4,
+              "output": 79,
+              "cacheRead": 41116,
+              "cacheWrite": 20985
+            }
+          }
+        }
+      ],
+      "shadow": [
+        {
+          "mode": "shadow",
+          "work_level": "low",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "low",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "low",
+              "durationMs": 3842,
+              "usage": {
+                "input": 2,
+                "output": 74,
+                "cacheRead": 10118,
+                "cacheWrite": 20880
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "low",
+              "durationMs": 1831,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 30998,
+                "cacheWrite": 105
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 6037,
+            "usage": {
+              "input": 4,
+              "output": 79,
+              "cacheRead": 41116,
+              "cacheWrite": 20985
+            }
+          }
+        }
+      ],
+      "classifier-down": [
+        {
+          "mode": "enforce",
+          "reason": "fallback: fetch failed: effort-router: $.http.fetch(http://127.0.0.1:9/v1/systemone) failed: ECONNREFUSED: ECONNREFUSED: Unable to connect. Is the computer able to access the url?",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "durationMs": 3263,
+              "usage": {
+                "input": 2,
+                "output": 74,
+                "cacheRead": 10118,
+                "cacheWrite": 20884
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "durationMs": 701,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 31002,
+                "cacheWrite": 105
+              }
+            }
+          ],
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 4368,
+            "usage": {
+              "input": 4,
+              "output": 79,
+              "cacheRead": 41120,
+              "cacheWrite": 20989
+            }
+          }
+        }
+      ],
+      "classifier-hangs": [
+        {
+          "mode": "enforce",
+          "reason": "fallback: timeout",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "durationMs": 3263,
+              "usage": {
+                "input": 2,
+                "output": 74,
+                "cacheRead": 10118,
+                "cacheWrite": 20888
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "durationMs": 1361,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 31006,
+                "cacheWrite": 105
+              }
+            }
+          ],
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 6558,
+            "usage": {
+              "input": 4,
+              "output": 79,
+              "cacheRead": 41124,
+              "cacheWrite": 20993
+            }
+          }
+        }
+      ],
+      "manual-launch": [
+        {
+          "mode": "enforce",
+          "work_level": "low",
+          "reason": "classifier",
+          "session_effort": "high",
+          "baseline": "xhigh",
+          "would_pick": "low",
+          "sent": "high",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "high",
+              "sent": "high",
+              "would": "low",
+              "durationMs": 3332,
+              "usage": {
+                "input": 2,
+                "output": 74,
+                "cacheRead": 10118,
+                "cacheWrite": 20884
+              }
+            },
+            {
+              "index": 1,
+              "seen": "high",
+              "sent": "high",
+              "would": "low",
+              "durationMs": 810,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 31002,
+                "cacheWrite": 105
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 4550,
+            "usage": {
+              "input": 4,
+              "output": 79,
+              "cacheRead": 41120,
+              "cacheWrite": 20989
+            }
+          }
+        }
+      ],
+      "headless-default": [],
+      "off": [],
+      "subagent": [
+        {
+          "mode": "enforce",
+          "work_level": "low",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 3984,
+              "usage": {
+                "input": 2,
+                "output": 205,
+                "cacheRead": 10118,
+                "cacheWrite": 20911
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 872,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 31029,
+                "cacheWrite": 801
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 11082,
+            "usage": {
+              "input": 4,
+              "output": 210,
+              "cacheRead": 41147,
+              "cacheWrite": 21712
+            }
+          }
+        }
+      ]
+    }
+  },
+  "finalTargetedSuite": {
+    "results": [
+      {
+        "name": "credential-evidence",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "real-untrusted-evidence",
+        "failures": [],
+        "seconds": 9
+      },
+      {
+        "name": "real-discovery-toy",
+        "failures": [],
+        "seconds": 7
+      },
+      {
+        "name": "real-discovery-kernel",
+        "failures": [],
+        "seconds": 19
+      }
+    ],
+    "flows": {
+      "credential-evidence": [
+        {
+          "mode": "enforce",
+          "work_level": "low",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 2699,
+              "usage": {
+                "input": 2,
+                "output": 219,
+                "cacheRead": 10118,
+                "cacheWrite": 20914
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 1079,
+              "usage": {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 31032,
+                "cacheWrite": 621
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [
+            {
+              "level": "xhigh",
+              "workLevel": "low",
+              "contextSufficient": true,
+              "missing": [],
+              "continuation": false,
+              "reason": "classifier",
+              "probabilities": {
+                "low": 0,
+                "medium": 0,
+                "high": 0.10000000000000002,
+                "xhigh": 0.9
+              },
+              "workProbabilities": {
+                "low": 1,
+                "medium": 0,
+                "high": 0,
+                "xhigh": 0
+              },
+              "confidence": 0.9,
+              "latencyMs": 1
+            }
+          ],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 4254,
+            "usage": {
+              "input": 4,
+              "output": 224,
+              "cacheRead": 41150,
+              "cacheWrite": 21535
+            }
+          }
+        }
+      ],
+      "real-untrusted-evidence": [
+        {
+          "mode": "enforce",
+          "work_level": "medium",
+          "reason": "insufficient context",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "xhigh",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 3402,
+              "usage": {
+                "input": 2,
+                "output": 231,
+                "cacheRead": 10118,
+                "cacheWrite": 20912
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 2797,
+              "usage": {
+                "input": 2,
+                "output": 113,
+                "cacheRead": 31030,
+                "cacheWrite": 326
+              }
+            }
+          ],
+          "context_sufficient": false,
+          "missing_context": [
+            "missing_evidence",
+            "missing_target"
+          ],
+          "continuation": false,
+          "discovery": [
+            {
+              "level": "xhigh",
+              "workLevel": "medium",
+              "contextSufficient": false,
+              "missing": [
+                "untrusted_routing_instruction"
+              ],
+              "continuation": false,
+              "reason": "insufficient context",
+              "probabilities": {
+                "low": 0.9,
+                "medium": 0.07,
+                "high": 0.02,
+                "xhigh": 0.01
+              },
+              "workProbabilities": {
+                "low": 0.85,
+                "medium": 0.15,
+                "high": 0,
+                "xhigh": 0
+              },
+              "confidence": 0.87,
+              "latencyMs": 164
+            }
+          ],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 7150,
+            "usage": {
+              "input": 4,
+              "output": 344,
+              "cacheRead": 41148,
+              "cacheWrite": 21238
+            }
+          }
+        }
+      ],
+      "real-discovery-toy": [
+        {
+          "mode": "enforce",
+          "work_level": "medium",
+          "reason": "task complexity",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "medium",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 2390,
+              "usage": {
+                "input": 2,
+                "output": 182,
+                "cacheRead": 10118,
+                "cacheWrite": 20899
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "medium",
+              "would": "medium",
+              "durationMs": 1652,
+              "usage": {
+                "input": 2,
+                "output": 86,
+                "cacheRead": 31017,
+                "cacheWrite": 261
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [
+            {
+              "level": "medium",
+              "workLevel": "medium",
+              "contextSufficient": true,
+              "missing": [],
+              "continuation": false,
+              "reason": "task complexity",
+              "probabilities": {
+                "low": 0.96,
+                "medium": 0.04,
+                "high": 0,
+                "xhigh": 0
+              },
+              "workProbabilities": {
+                "low": 0.44,
+                "medium": 0.56,
+                "high": 0,
+                "xhigh": 0
+              },
+              "confidence": 0.9499999999999998,
+              "latencyMs": 178
+            }
+          ],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 5045,
+            "usage": {
+              "input": 4,
+              "output": 268,
+              "cacheRead": 41135,
+              "cacheWrite": 21160
+            }
+          }
+        }
+      ],
+      "real-discovery-kernel": [
+        {
+          "mode": "enforce",
+          "work_level": "high",
+          "evidence_floor": "high",
+          "reason": "classifier",
+          "session_effort": "xhigh",
+          "baseline": "xhigh",
+          "would_pick": "high",
+          "sent": "xhigh",
+          "steps": [
+            {
+              "index": 0,
+              "seen": "xhigh",
+              "sent": "xhigh",
+              "would": "xhigh",
+              "durationMs": 2601,
+              "usage": {
+                "input": 2,
+                "output": 190,
+                "cacheRead": 10118,
+                "cacheWrite": 20901
+              }
+            },
+            {
+              "index": 1,
+              "seen": "xhigh",
+              "sent": "high",
+              "would": "high",
+              "durationMs": 13690,
+              "usage": {
+                "input": 2,
+                "output": 1368,
+                "cacheRead": 31019,
+                "cacheWrite": 494
+              }
+            }
+          ],
+          "context_sufficient": true,
+          "missing_context": [],
+          "continuation": false,
+          "discovery": [
+            {
+              "level": "high",
+              "workLevel": "high",
+              "evidenceFloor": "high",
+              "contextSufficient": true,
+              "missing": [],
+              "continuation": false,
+              "reason": "classifier",
+              "probabilities": {
+                "low": 0.54,
+                "medium": 0.4000000000000001,
+                "high": 0.06,
+                "xhigh": 0
+              },
+              "workProbabilities": {
+                "low": 0.07920792079207921,
+                "medium": 0.8415841584158416,
+                "high": 0.06930693069306931,
+                "xhigh": 0.009900990099009901
+              },
+              "confidence": 0.38000000000000006,
+              "latencyMs": 190
+            }
+          ],
+          "outcome": {
+            "reason": "answer",
+            "duration_ms": 17229,
+            "usage": {
+              "input": 4,
+              "output": 1558,
+              "cacheRead": 41137,
+              "cacheWrite": 21395
+            }
+          }
+        }
+      ]
+    }
+  },
+  "interactive": {
+    "checks": [
+      "status",
+      "enforce literal low closing suffix",
+      "explicit cue xhigh closing suffix",
+      "why actual effort and step telemetry",
+      "shadow actual xhigh and predicted low",
+      "restore enforce",
+      "active xhigh spinner"
+    ],
+    "records": [
+      {
+        "mode": "enforce",
+        "reason": "fallback: no previous pick",
+        "session_effort": "xhigh",
+        "baseline": "xhigh",
+        "sent": "xhigh",
+        "steps": [
+          {
+            "index": 0,
+            "seen": "xhigh",
+            "sent": "xhigh",
+            "durationMs": 1556,
+            "usage": {
+              "input": 2,
+              "output": 4,
+              "cacheRead": 0,
+              "cacheWrite": 22942
+            }
+          }
+        ],
+        "discovery": [],
+        "outcome": {
+          "reason": "answer",
+          "duration_ms": 2142,
+          "usage": {
+            "input": 2,
+            "output": 4,
+            "cacheRead": 0,
+            "cacheWrite": 22942
+          }
+        }
+      },
+      {
+        "mode": "enforce",
+        "work_level": "low",
+        "reason": "classifier",
+        "session_effort": "xhigh",
+        "baseline": "xhigh",
+        "would_pick": "low",
+        "sent": "low",
+        "steps": [
+          {
+            "index": 0,
+            "seen": "xhigh",
+            "sent": "low",
+            "would": "low",
+            "durationMs": 1388,
+            "usage": {
+              "input": 2,
+              "output": 4,
+              "cacheRead": 16442,
+              "cacheWrite": 6540
+            }
+          }
+        ],
+        "context_sufficient": true,
+        "missing_context": [],
+        "continuation": false,
+        "discovery": [],
+        "outcome": {
+          "reason": "answer",
+          "duration_ms": 1902,
+          "usage": {
+            "input": 2,
+            "output": 4,
+            "cacheRead": 16442,
+            "cacheWrite": 6540
+          }
+        }
+      },
+      {
+        "mode": "enforce",
+        "work_level": "xhigh",
+        "reason": "cue",
+        "session_effort": "xhigh",
+        "baseline": "xhigh",
+        "would_pick": "xhigh",
+        "sent": "xhigh",
+        "steps": [
+          {
+            "index": 0,
+            "seen": "xhigh",
+            "sent": "xhigh",
+            "would": "xhigh",
+            "durationMs": 5669,
+            "usage": {
+              "input": 2,
+              "output": 416,
+              "cacheRead": 22985,
+              "cacheWrite": 715
+            }
+          }
+        ],
+        "context_sufficient": true,
+        "missing_context": [],
+        "continuation": false,
+        "discovery": [],
+        "outcome": {
+          "reason": "answer",
+          "duration_ms": 6190,
+          "usage": {
+            "input": 2,
+            "output": 416,
+            "cacheRead": 22985,
+            "cacheWrite": 715
+          }
+        }
+      },
+      {
+        "mode": "shadow",
+        "work_level": "low",
+        "reason": "classifier",
+        "session_effort": "xhigh",
+        "baseline": "xhigh",
+        "would_pick": "low",
+        "sent": "xhigh",
+        "steps": [
+          {
+            "index": 0,
+            "seen": "xhigh",
+            "sent": "xhigh",
+            "would": "low",
+            "durationMs": 1621,
+            "usage": {
+              "input": 2,
+              "output": 4,
+              "cacheRead": 24116,
+              "cacheWrite": 116
+            }
+          }
+        ],
+        "context_sufficient": true,
+        "missing_context": [],
+        "continuation": false,
+        "discovery": [],
+        "outcome": {
+          "reason": "answer",
+          "duration_ms": 1910,
+          "usage": {
+            "input": 2,
+            "output": 4,
+            "cacheRead": 24116,
+            "cacheWrite": 116
+          }
+        }
+      },
+      {
+        "mode": "enforce",
+        "work_level": "xhigh",
+        "reason": "cue",
+        "session_effort": "xhigh",
+        "baseline": "xhigh",
+        "would_pick": "xhigh",
+        "sent": "xhigh",
+        "steps": [
+          {
+            "index": 0,
+            "seen": "xhigh",
+            "sent": "xhigh",
+            "would": "xhigh",
+            "durationMs": 20348,
+            "usage": {
+              "input": 2,
+              "output": 2028,
+              "cacheRead": 24236,
+              "cacheWrite": 862
+            }
+          }
+        ],
+        "context_sufficient": true,
+        "missing_context": [],
+        "continuation": false,
+        "discovery": [],
+        "outcome": {
+          "reason": "answer",
+          "duration_ms": 20972,
+          "usage": {
+            "input": 2,
+            "output": 2028,
+            "cacheRead": 24236,
+            "cacheWrite": 862
+          }
+        }
+      }
+    ],
+    "hotReloadNote": "The first request coincided with a source reload and retained xhigh with no previous pick. All subsequent checks used settled source.",
+    "evidenceFiles": [
+      "/tmp/effort-router-ui-spinner.ansi",
+      "/tmp/effort-router-ui-completed.txt",
+      "/tmp/effort-router-ui-logs/970372a3-f1c1-4bbe-bf4e-9b567c089017.jsonl"
+    ]
+  },
+  "checks": {
+    "pluginTests": {
+      "passed": 80,
+      "failed": 0
+    },
+    "parserChecks": 4,
+    "productionTypecheck": "passed",
+    "e2eBuild": "passed",
+    "diffWhitespace": "passed",
+    "proseLint": "passed"
+  },
+  "independentReview": {
+    "reviewer": "Claude CLI",
+    "status": "Completed; no blocking findings in final focused follow-up",
+    "confirmedFixes": [
+      "prior-task evidence scanned on new tasks",
+      "Authorization schemes and quoted parameters redacted",
+      "empty-user and token-only URL credentials redacted"
+    ],
+    "remainingLowSeverity": [
+      "Routing-instruction heuristic can match classifier-free prose or router type annotations, retaining baseline effort",
+      "Credential source heuristic can omit auth-related search terms and dotted expressions, reducing evidence"
+    ],
+    "scopeLimit": "Final follow-up did not inspect host budget getter or refresh code; local source inspection and hook tests covered those paths."
+  },
+  "historical47": {
+    "n": 47,
+    "fingerprint": "33d4f911fa36c8fd",
+    "routingVersion": "8fa8b162712178ff",
+    "labelSource": {
+      "judge": "local-smart",
+      "fingerprint": "79f17fcbb25a0dde"
+    },
+    "labeled": 47,
+    "predictions": 99,
+    "scorable": 47,
+    "variants": {
+      "all/fixed-high": {
+        "n": 47,
+        "under": 6,
+        "exact": 20,
+        "over": 21,
+        "belowXhigh": 47,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "all/fixed-xhigh": {
+        "n": 47,
+        "under": 0,
+        "exact": 6,
+        "over": 41,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "all/legacy": {
+        "n": 47,
+        "under": 2,
+        "exact": 12,
+        "over": 33,
+        "belowXhigh": 23,
+        "abstentions": 0,
+        "failures": 0,
+        "p50Ms": 280,
+        "p95Ms": 377,
+        "classifierInputTokens": 36555
+      },
+      "all/context": {
+        "n": 47,
+        "under": 1,
+        "exact": 11,
+        "over": 35,
+        "belowXhigh": 21,
+        "abstentions": 33,
+        "failures": 0,
+        "p50Ms": 313,
+        "p95Ms": 418,
+        "classifierInputTokens": 80301
+      },
+      "all/context-at-xhigh": {
+        "n": 47,
+        "under": 0,
+        "exact": 10,
+        "over": 37,
+        "belowXhigh": 12,
+        "abstentions": 33,
+        "failures": 0,
+        "p50Ms": 313,
+        "p95Ms": 418,
+        "classifierInputTokens": 80301
+      },
+      "all/discovery": {
+        "n": 5,
+        "under": 0,
+        "exact": 2,
+        "over": 3,
+        "belowXhigh": 0,
+        "abstentions": 4,
+        "failures": 0,
+        "p50Ms": 350,
+        "p95Ms": 448,
+        "classifierInputTokens": 13493
+      },
+      "claude/fixed-high": {
+        "n": 17,
+        "under": 5,
+        "exact": 8,
+        "over": 4,
+        "belowXhigh": 17,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "claude/fixed-xhigh": {
+        "n": 17,
+        "under": 0,
+        "exact": 5,
+        "over": 12,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "claude/legacy": {
+        "n": 17,
+        "under": 0,
+        "exact": 7,
+        "over": 10,
+        "belowXhigh": 5,
+        "abstentions": 0,
+        "failures": 0,
+        "p50Ms": 255,
+        "p95Ms": 450,
+        "classifierInputTokens": 11308
+      },
+      "claude/context": {
+        "n": 17,
+        "under": 0,
+        "exact": 8,
+        "over": 9,
+        "belowXhigh": 5,
+        "abstentions": 13,
+        "failures": 0,
+        "p50Ms": 268,
+        "p95Ms": 448,
+        "classifierInputTokens": 25534
+      },
+      "claude/context-at-xhigh": {
+        "n": 17,
+        "under": 0,
+        "exact": 8,
+        "over": 9,
+        "belowXhigh": 3,
+        "abstentions": 13,
+        "failures": 0,
+        "p50Ms": 268,
+        "p95Ms": 448,
+        "classifierInputTokens": 25534
+      },
+      "claude/discovery": {
+        "n": 5,
+        "under": 0,
+        "exact": 2,
+        "over": 3,
+        "belowXhigh": 0,
+        "abstentions": 4,
+        "failures": 0,
+        "p50Ms": 350,
+        "p95Ms": 448,
+        "classifierInputTokens": 13493
+      },
+      "codex/fixed-high": {
+        "n": 30,
+        "under": 1,
+        "exact": 12,
+        "over": 17,
+        "belowXhigh": 30,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/fixed-xhigh": {
+        "n": 30,
+        "under": 0,
+        "exact": 1,
+        "over": 29,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/legacy": {
+        "n": 30,
+        "under": 2,
+        "exact": 5,
+        "over": 23,
+        "belowXhigh": 18,
+        "abstentions": 0,
+        "failures": 0,
+        "p50Ms": 285,
+        "p95Ms": 377,
+        "classifierInputTokens": 25247
+      },
+      "codex/context": {
+        "n": 30,
+        "under": 1,
+        "exact": 3,
+        "over": 26,
+        "belowXhigh": 16,
+        "abstentions": 20,
+        "failures": 0,
+        "p50Ms": 314,
+        "p95Ms": 418,
+        "classifierInputTokens": 54767
+      },
+      "codex/context-at-xhigh": {
+        "n": 30,
+        "under": 0,
+        "exact": 2,
+        "over": 28,
+        "belowXhigh": 9,
+        "abstentions": 20,
+        "failures": 0,
+        "p50Ms": 314,
+        "p95Ms": 418,
+        "classifierInputTokens": 54767
+      },
+      "codex/discovery": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      }
+    },
+    "routing": {
+      "legacy": {
+        "n": 47,
+        "failures": 0,
+        "abstentions": 0,
+        "levels": {
+          "low": 3,
+          "medium": 16,
+          "high": 4,
+          "xhigh": 24
+        }
+      },
+      "context": {
+        "n": 47,
+        "failures": 0,
+        "abstentions": 33,
+        "levels": {
+          "low": 3,
+          "medium": 7,
+          "high": 11,
+          "xhigh": 26
+        }
+      },
+      "discovery": {
+        "n": 5,
+        "failures": 0,
+        "abstentions": 4,
+        "levels": {
+          "low": 0,
+          "medium": 0,
+          "high": 0,
+          "xhigh": 5
+        }
+      }
+    },
+    "limitations": [
+      "Labels are independent model judgments, not measured counterfactual task success.",
+      "No Claude generation was used for the evaluation.",
+      "Codex shell-tool evidence is available to the judge but not the current Claude plugin.",
+      "Replay uses historical evidence only; initial decisions exclude later tool output.",
+      "Raw transcripts and labels stay outside the repository."
+    ]
+  },
+  "historical67": {
+    "n": 67,
+    "fingerprint": "0496cb2313b32968",
+    "routingVersion": "8fa8b162712178ff",
+    "labelSource": "existing prompt-only consensus; regression comparison, not contextual ground truth",
+    "labeled": 67,
+    "predictions": 140,
+    "scorable": 67,
+    "variants": {
+      "all/fixed-high": {
+        "n": 67,
+        "under": 24,
+        "exact": 19,
+        "over": 24,
+        "belowXhigh": 67,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "all/fixed-xhigh": {
+        "n": 67,
+        "under": 0,
+        "exact": 24,
+        "over": 43,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "all/legacy": {
+        "n": 67,
+        "under": 4,
+        "exact": 37,
+        "over": 26,
+        "belowXhigh": 30,
+        "abstentions": 0,
+        "failures": 0,
+        "p50Ms": 442,
+        "p95Ms": 550,
+        "classifierInputTokens": 100342
+      },
+      "all/context": {
+        "n": 67,
+        "under": 2,
+        "exact": 37,
+        "over": 28,
+        "belowXhigh": 32,
+        "abstentions": 49,
+        "failures": 0,
+        "p50Ms": 460,
+        "p95Ms": 584,
+        "classifierInputTokens": 236067
+      },
+      "all/context-at-xhigh": {
+        "n": 67,
+        "under": 1,
+        "exact": 31,
+        "over": 35,
+        "belowXhigh": 14,
+        "abstentions": 49,
+        "failures": 0,
+        "p50Ms": 460,
+        "p95Ms": 584,
+        "classifierInputTokens": 236067
+      },
+      "all/discovery": {
+        "n": 6,
+        "under": 1,
+        "exact": 4,
+        "over": 1,
+        "belowXhigh": 2,
+        "abstentions": 5,
+        "failures": 0,
+        "p50Ms": 454,
+        "p95Ms": 558,
+        "classifierInputTokens": 23919
+      },
+      "claude/fixed-high": {
+        "n": 67,
+        "under": 24,
+        "exact": 19,
+        "over": 24,
+        "belowXhigh": 67,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "claude/fixed-xhigh": {
+        "n": 67,
+        "under": 0,
+        "exact": 24,
+        "over": 43,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "claude/legacy": {
+        "n": 67,
+        "under": 4,
+        "exact": 37,
+        "over": 26,
+        "belowXhigh": 30,
+        "abstentions": 0,
+        "failures": 0,
+        "p50Ms": 442,
+        "p95Ms": 550,
+        "classifierInputTokens": 100342
+      },
+      "claude/context": {
+        "n": 67,
+        "under": 2,
+        "exact": 37,
+        "over": 28,
+        "belowXhigh": 32,
+        "abstentions": 49,
+        "failures": 0,
+        "p50Ms": 460,
+        "p95Ms": 584,
+        "classifierInputTokens": 236067
+      },
+      "claude/context-at-xhigh": {
+        "n": 67,
+        "under": 1,
+        "exact": 31,
+        "over": 35,
+        "belowXhigh": 14,
+        "abstentions": 49,
+        "failures": 0,
+        "p50Ms": 460,
+        "p95Ms": 584,
+        "classifierInputTokens": 236067
+      },
+      "claude/discovery": {
+        "n": 6,
+        "under": 1,
+        "exact": 4,
+        "over": 1,
+        "belowXhigh": 2,
+        "abstentions": 5,
+        "failures": 0,
+        "p50Ms": 454,
+        "p95Ms": 558,
+        "classifierInputTokens": 23919
+      },
+      "codex/fixed-high": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/fixed-xhigh": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/legacy": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/context": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/context-at-xhigh": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/discovery": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      }
+    },
+    "routing": {
+      "legacy": {
+        "n": 67,
+        "failures": 0,
+        "abstentions": 0,
+        "levels": {
+          "low": 2,
+          "medium": 19,
+          "high": 9,
+          "xhigh": 37
+        }
+      },
+      "context": {
+        "n": 67,
+        "failures": 0,
+        "abstentions": 49,
+        "levels": {
+          "low": 4,
+          "medium": 3,
+          "high": 25,
+          "xhigh": 35
+        }
+      },
+      "discovery": {
+        "n": 6,
+        "failures": 0,
+        "abstentions": 5,
+        "levels": {
+          "low": 0,
+          "medium": 0,
+          "high": 2,
+          "xhigh": 4
+        }
+      }
+    },
+    "limitations": [
+      "Labels are independent model judgments, not measured counterfactual task success.",
+      "No Claude generation was used for the evaluation.",
+      "Codex shell-tool evidence is available to the judge but not the current Claude plugin.",
+      "Replay uses historical evidence only; initial decisions exclude later tool output.",
+      "Raw transcripts and labels stay outside the repository."
+    ]
+  },
+  "syntheticPairs": [
+    {
+      "id": "toy-explain",
+      "pass": true,
+      "level": "medium",
+      "workLevel": "medium",
+      "contextSufficient": true,
+      "missing": [],
+      "continuation": false,
+      "reason": "task complexity",
+      "answer": {
+        "choice": "low",
+        "probabilities": {
+          "low": 0.9595959595959596,
+          "medium": 0.04040404040404041,
+          "high": 0,
+          "xhigh": 0
+        },
+        "workProbabilities": {
+          "low": 0.34,
+          "medium": 0.66,
+          "high": 0,
+          "xhigh": 0
+        },
+        "confidence": 0.94,
+        "context": "sufficient",
+        "contextSufficient": true,
+        "relation": "new"
+      },
+      "latencyMs": 220,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "kernel-explain",
+      "pass": true,
+      "level": "xhigh",
+      "workLevel": "xhigh",
+      "contextSufficient": true,
+      "missing": [],
+      "continuation": false,
+      "reason": "classifier",
+      "answer": {
+        "choice": "high",
+        "probabilities": {
+          "low": 0.04,
+          "medium": 0.08,
+          "high": 0.74,
+          "xhigh": 0.14
+        },
+        "workProbabilities": {
+          "low": 0.039603960396039604,
+          "medium": 0.07920792079207921,
+          "high": 0.31683168316831684,
+          "xhigh": 0.5643564356435643
+        },
+        "confidence": 0.65,
+        "context": "sufficient",
+        "contextSufficient": true,
+        "relation": "new"
+      },
+      "latencyMs": 170,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "kernel-brief-explain",
+      "pass": true,
+      "level": "xhigh",
+      "workLevel": "xhigh",
+      "contextSufficient": true,
+      "missing": [],
+      "continuation": false,
+      "reason": "task complexity",
+      "answer": {
+        "choice": "medium",
+        "probabilities": {
+          "low": 0.20202020202020204,
+          "medium": 0.494949494949495,
+          "high": 0.29292929292929293,
+          "xhigh": 0.010101010101010102
+        },
+        "workProbabilities": {
+          "low": 0.05,
+          "medium": 0.33,
+          "high": 0.44,
+          "xhigh": 0.18
+        },
+        "confidence": 0.32,
+        "context": "sufficient",
+        "contextSufficient": true,
+        "relation": "new"
+      },
+      "latencyMs": 172,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "toy-unknown",
+      "pass": true,
+      "level": "high",
+      "workLevel": "medium",
+      "contextSufficient": false,
+      "missing": [
+        "uncertain_context",
+        "missing_target"
+      ],
+      "continuation": false,
+      "reason": "insufficient context",
+      "answer": {
+        "choice": "low",
+        "probabilities": {
+          "low": 0.84,
+          "medium": 0.14,
+          "high": 0.02,
+          "xhigh": 0
+        },
+        "workProbabilities": {
+          "low": 0.7920792079207921,
+          "medium": 0.1782178217821782,
+          "high": 0.019801980198019802,
+          "xhigh": 0.009900990099009901
+        },
+        "confidence": 0.78,
+        "context": "sufficient",
+        "contextSufficient": false,
+        "relation": "new"
+      },
+      "latencyMs": 174,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "kernel-unknown",
+      "pass": true,
+      "level": "xhigh",
+      "workLevel": "xhigh",
+      "contextSufficient": false,
+      "missing": [
+        "missing_evidence",
+        "missing_target"
+      ],
+      "continuation": false,
+      "reason": "insufficient context",
+      "answer": {
+        "choice": "xhigh",
+        "probabilities": {
+          "low": 0.12121212121212122,
+          "medium": 0.13131313131313133,
+          "high": 0.20202020202020204,
+          "xhigh": 0.5454545454545455
+        },
+        "workProbabilities": {
+          "low": 0.2079207920792079,
+          "medium": 0.24752475247524752,
+          "high": 0.26732673267326734,
+          "xhigh": 0.27722772277227725
+        },
+        "confidence": 0.39,
+        "context": "missing_evidence",
+        "contextSufficient": false,
+        "relation": "new"
+      },
+      "latencyMs": 165,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "kernel-typo",
+      "pass": true,
+      "level": "low",
+      "workLevel": "low",
+      "contextSufficient": true,
+      "missing": [],
+      "continuation": false,
+      "reason": "classifier",
+      "answer": {
+        "choice": "low",
+        "probabilities": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "xhigh": 0
+        },
+        "workProbabilities": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "xhigh": 0
+        },
+        "confidence": 1,
+        "context": "sufficient",
+        "contextSufficient": true,
+        "relation": "new"
+      },
+      "latencyMs": 120,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "toy-typo",
+      "pass": true,
+      "level": "low",
+      "workLevel": "low",
+      "contextSufficient": true,
+      "missing": [],
+      "continuation": false,
+      "reason": "classifier",
+      "answer": {
+        "choice": "low",
+        "probabilities": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "xhigh": 0
+        },
+        "workProbabilities": {
+          "low": 0.98,
+          "medium": 0.02,
+          "high": 0,
+          "xhigh": 0
+        },
+        "confidence": 1,
+        "context": "sufficient",
+        "contextSufficient": true,
+        "relation": "new"
+      },
+      "latencyMs": 163,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "continue-hard",
+      "pass": false,
+      "level": "xhigh",
+      "workLevel": "xhigh",
+      "contextSufficient": false,
+      "missing": [
+        "missing_scope"
+      ],
+      "continuation": true,
+      "reason": "insufficient context",
+      "answer": {
+        "choice": "xhigh",
+        "probabilities": {
+          "low": 0.01,
+          "medium": 0.01,
+          "high": 0.08,
+          "xhigh": 0.9
+        },
+        "workProbabilities": {
+          "low": 0.009900990099009901,
+          "medium": 0.019801980198019802,
+          "high": 0.26732673267326734,
+          "xhigh": 0.7029702970297029
+        },
+        "confidence": 0.87,
+        "context": "missing_scope",
+        "contextSufficient": false,
+        "relation": "continuation"
+      },
+      "latencyMs": 161,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "new-easy-after-hard",
+      "pass": true,
+      "level": "low",
+      "workLevel": "low",
+      "contextSufficient": true,
+      "missing": [],
+      "continuation": false,
+      "reason": "classifier",
+      "answer": {
+        "choice": "low",
+        "probabilities": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "xhigh": 0
+        },
+        "workProbabilities": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "xhigh": 0
+        },
+        "confidence": 1,
+        "context": "sufficient",
+        "contextSufficient": true,
+        "relation": "new"
+      },
+      "latencyMs": 119,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "continue-missing",
+      "pass": true,
+      "level": "xhigh",
+      "workLevel": "xhigh",
+      "contextSufficient": false,
+      "missing": [
+        "missing_target",
+        "missing_previous_task"
+      ],
+      "continuation": true,
+      "reason": "insufficient context",
+      "answer": {
+        "choice": "medium",
+        "probabilities": {
+          "low": 0.24752475247524752,
+          "medium": 0.5445544554455446,
+          "high": 0.09900990099009901,
+          "xhigh": 0.10891089108910891
+        },
+        "workProbabilities": {
+          "low": 0.3465346534653465,
+          "medium": 0.31683168316831684,
+          "high": 0.2376237623762376,
+          "xhigh": 0.09900990099009901
+        },
+        "confidence": 0.4,
+        "context": "missing_target",
+        "contextSufficient": false,
+        "relation": "unknown"
+      },
+      "latencyMs": 182,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "self-contained",
+      "pass": true,
+      "level": "low",
+      "workLevel": "low",
+      "contextSufficient": true,
+      "missing": [],
+      "continuation": false,
+      "reason": "classifier",
+      "answer": {
+        "choice": "low",
+        "probabilities": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "xhigh": 0
+        },
+        "workProbabilities": {
+          "low": 0.99,
+          "medium": 0.01,
+          "high": 0,
+          "xhigh": 0
+        },
+        "confidence": 1,
+        "context": "sufficient",
+        "contextSufficient": true,
+        "relation": "new"
+      },
+      "latencyMs": 161,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "tiny-hard",
+      "pass": true,
+      "level": "xhigh",
+      "workLevel": "xhigh",
+      "evidenceFloor": "high",
+      "contextSufficient": false,
+      "missing": [
+        "uncertain_context"
+      ],
+      "continuation": false,
+      "reason": "insufficient context",
+      "answer": {
+        "choice": "xhigh",
+        "probabilities": {
+          "low": 0.03,
+          "medium": 0.03,
+          "high": 0.2,
+          "xhigh": 0.74
+        },
+        "workProbabilities": {
+          "low": 0.019801980198019802,
+          "medium": 0.039603960396039604,
+          "high": 0.26732673267326734,
+          "xhigh": 0.6732673267326733
+        },
+        "confidence": 0.65,
+        "context": "sufficient",
+        "contextSufficient": false,
+        "relation": "new"
+      },
+      "latencyMs": 196,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "untrusted-comment",
+      "pass": true,
+      "level": "xhigh",
+      "workLevel": "xhigh",
+      "contextSufficient": false,
+      "missing": [
+        "untrusted_routing_instruction"
+      ],
+      "continuation": false,
+      "reason": "insufficient context",
+      "answer": {
+        "choice": "low",
+        "probabilities": {
+          "low": 0.5544554455445545,
+          "medium": 0.13861386138613863,
+          "high": 0.2376237623762376,
+          "xhigh": 0.06930693069306931
+        },
+        "workProbabilities": {
+          "low": 0.03,
+          "medium": 0.2,
+          "high": 0.47,
+          "xhigh": 0.3
+        },
+        "confidence": 0.41,
+        "context": "sufficient",
+        "contextSufficient": true,
+        "relation": "new"
+      },
+      "latencyMs": 174,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    }
+  ],
+  "sourceSha256": {
+    "hooks/classify.ts": "39aa2c835fb6ebf024eae936e6f5371a718f87dcc8a7c3e37445c7da8656a102",
+    "hooks/context.ts": "89ef7e2a97dc17ab2f4134508f657096a75746cab4c302c1f49b951972b80f3c",
+    "hooks/policy.ts": "a97f7746b06edf769993142a481cbe7eda02e894a3a764044b07a6dc7e558e0b",
+    "hooks/register.ts": "4310369edfb6ed3f0350cfa49195bd622eecca75083cec8d9fec108fd7ceba74",
+    "hooks/host.ts": "29940b200095bdc34a0b744120b94ae0368f6217f1493082e449d929dba4442c",
+    "e2e/e2e.ts": "8a67572cc613d9a56a2102751eaad9ad0bc5f25f901d34a730f105672d86745a",
+    "tests/context.test.ts": "6a125a806f509d92af175e59861868bfea7bb20dea4644d8d700016c7cbf578e",
+    "tests/register.test.ts": "6347b59ef7351cbf648d2d0fd7576a1ed9d9d85bc4e31b90aad819b84cc385f8"
+  }
+}

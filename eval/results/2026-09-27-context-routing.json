@@ -1,0 +1,743 @@
+{
+  "date": "2026-09-27",
+  "classifier": "local-decide",
+  "servedClassifier": [
+    "djev-spark-ec4ff3df-nvfp4"
+  ],
+  "judge": "local-smart",
+  "servedJudge": [
+    "local-smart"
+  ],
+  "judgeLabelDistribution": {
+    "low": 18,
+    "medium": 3,
+    "high": 20,
+    "xhigh": 6
+  },
+  "judgeUsage": {
+    "inputTokens": 297890,
+    "outputTokens": 24502
+  },
+  "sampleManifest": {
+    "created": "2026-09-26T21:49:37.672Z",
+    "seed": "context-routing-v1",
+    "inventory": {
+      "claude": {
+        "files": 200,
+        "candidateTurns": 22,
+        "sampledSessions": 17
+      },
+      "codex": {
+        "files": 200,
+        "candidateTurns": 65,
+        "sampledSessions": 30
+      }
+    },
+    "excludedLegacySessions": 28,
+    "fingerprint": "12775bf20bccb3c2",
+    "n": 47
+  },
+  "historicalReplay": {
+    "n": 47,
+    "fingerprint": "8b7858969f8b5f91",
+    "routingVersion": "27adf3496b9d3b30",
+    "labeled": 47,
+    "predictions": 99,
+    "scorable": 47,
+    "variants": {
+      "all/fixed-high": {
+        "n": 47,
+        "under": 6,
+        "exact": 20,
+        "over": 21,
+        "belowXhigh": 47,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "all/fixed-xhigh": {
+        "n": 47,
+        "under": 0,
+        "exact": 6,
+        "over": 41,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "all/legacy": {
+        "n": 47,
+        "under": 2,
+        "exact": 10,
+        "over": 35,
+        "belowXhigh": 23,
+        "abstentions": 0,
+        "failures": 0,
+        "p50Ms": 286,
+        "p95Ms": 364,
+        "classifierInputTokens": 36555
+      },
+      "all/context": {
+        "n": 47,
+        "under": 1,
+        "exact": 19,
+        "over": 27,
+        "belowXhigh": 25,
+        "abstentions": 33,
+        "failures": 0,
+        "p50Ms": 311,
+        "p95Ms": 409,
+        "classifierInputTokens": 69678
+      },
+      "all/context-at-xhigh": {
+        "n": 47,
+        "under": 0,
+        "exact": 16,
+        "over": 31,
+        "belowXhigh": 11,
+        "abstentions": 33,
+        "failures": 0,
+        "p50Ms": 311,
+        "p95Ms": 409,
+        "classifierInputTokens": 69678
+      },
+      "all/discovery": {
+        "n": 5,
+        "under": 0,
+        "exact": 2,
+        "over": 3,
+        "belowXhigh": 0,
+        "abstentions": 5,
+        "failures": 0,
+        "p50Ms": 321,
+        "p95Ms": 352,
+        "classifierInputTokens": 12363
+      },
+      "claude/fixed-high": {
+        "n": 17,
+        "under": 5,
+        "exact": 8,
+        "over": 4,
+        "belowXhigh": 17,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "claude/fixed-xhigh": {
+        "n": 17,
+        "under": 0,
+        "exact": 5,
+        "over": 12,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "claude/legacy": {
+        "n": 17,
+        "under": 0,
+        "exact": 7,
+        "over": 10,
+        "belowXhigh": 5,
+        "abstentions": 0,
+        "failures": 0,
+        "p50Ms": 265,
+        "p95Ms": 383,
+        "classifierInputTokens": 11308
+      },
+      "claude/context": {
+        "n": 17,
+        "under": 0,
+        "exact": 8,
+        "over": 9,
+        "belowXhigh": 5,
+        "abstentions": 12,
+        "failures": 0,
+        "p50Ms": 289,
+        "p95Ms": 417,
+        "classifierInputTokens": 21691
+      },
+      "claude/context-at-xhigh": {
+        "n": 17,
+        "under": 0,
+        "exact": 8,
+        "over": 9,
+        "belowXhigh": 3,
+        "abstentions": 12,
+        "failures": 0,
+        "p50Ms": 289,
+        "p95Ms": 417,
+        "classifierInputTokens": 21691
+      },
+      "claude/discovery": {
+        "n": 5,
+        "under": 0,
+        "exact": 2,
+        "over": 3,
+        "belowXhigh": 0,
+        "abstentions": 5,
+        "failures": 0,
+        "p50Ms": 321,
+        "p95Ms": 352,
+        "classifierInputTokens": 12363
+      },
+      "codex/fixed-high": {
+        "n": 30,
+        "under": 1,
+        "exact": 12,
+        "over": 17,
+        "belowXhigh": 30,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/fixed-xhigh": {
+        "n": 30,
+        "under": 0,
+        "exact": 1,
+        "over": 29,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/legacy": {
+        "n": 30,
+        "under": 2,
+        "exact": 3,
+        "over": 25,
+        "belowXhigh": 18,
+        "abstentions": 0,
+        "failures": 0,
+        "p50Ms": 293,
+        "p95Ms": 364,
+        "classifierInputTokens": 25247
+      },
+      "codex/context": {
+        "n": 30,
+        "under": 1,
+        "exact": 11,
+        "over": 18,
+        "belowXhigh": 20,
+        "abstentions": 21,
+        "failures": 0,
+        "p50Ms": 324,
+        "p95Ms": 409,
+        "classifierInputTokens": 47987
+      },
+      "codex/context-at-xhigh": {
+        "n": 30,
+        "under": 0,
+        "exact": 8,
+        "over": 22,
+        "belowXhigh": 8,
+        "abstentions": 21,
+        "failures": 0,
+        "p50Ms": 324,
+        "p95Ms": 409,
+        "classifierInputTokens": 47987
+      },
+      "codex/discovery": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      }
+    },
+    "routing": {
+      "legacy": {
+        "n": 47,
+        "failures": 0,
+        "abstentions": 0,
+        "levels": {
+          "low": 2,
+          "medium": 17,
+          "high": 4,
+          "xhigh": 24
+        }
+      },
+      "context": {
+        "n": 47,
+        "failures": 0,
+        "abstentions": 33,
+        "levels": {
+          "low": 9,
+          "medium": 1,
+          "high": 15,
+          "xhigh": 22
+        }
+      },
+      "discovery": {
+        "n": 5,
+        "failures": 0,
+        "abstentions": 5,
+        "levels": {
+          "low": 0,
+          "medium": 0,
+          "high": 0,
+          "xhigh": 5
+        }
+      }
+    },
+    "limitations": [
+      "Labels are independent model judgments, not measured counterfactual task success.",
+      "No Claude generation was used for the evaluation.",
+      "Codex shell-tool evidence is available to the judge but not the current Claude plugin.",
+      "Replay uses historical evidence only; initial decisions exclude later tool output.",
+      "Raw transcripts and labels stay outside the repository."
+    ]
+  },
+  "originalLabelRegression": {
+    "n": 67,
+    "fingerprint": "d852b2396566d598",
+    "routingVersion": "27adf3496b9d3b30",
+    "labeled": 67,
+    "predictions": 140,
+    "scorable": 67,
+    "variants": {
+      "all/fixed-high": {
+        "n": 67,
+        "under": 24,
+        "exact": 19,
+        "over": 24,
+        "belowXhigh": 67,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "all/fixed-xhigh": {
+        "n": 67,
+        "under": 0,
+        "exact": 24,
+        "over": 43,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "all/legacy": {
+        "n": 67,
+        "under": 8,
+        "exact": 33,
+        "over": 26,
+        "belowXhigh": 31,
+        "abstentions": 0,
+        "failures": 0,
+        "p50Ms": 415,
+        "p95Ms": 533,
+        "classifierInputTokens": 100342
+      },
+      "all/context": {
+        "n": 67,
+        "under": 1,
+        "exact": 37,
+        "over": 29,
+        "belowXhigh": 24,
+        "abstentions": 48,
+        "failures": 0,
+        "p50Ms": 423,
+        "p95Ms": 529,
+        "classifierInputTokens": 200609
+      },
+      "all/context-at-xhigh": {
+        "n": 67,
+        "under": 1,
+        "exact": 31,
+        "over": 35,
+        "belowXhigh": 12,
+        "abstentions": 48,
+        "failures": 0,
+        "p50Ms": 423,
+        "p95Ms": 529,
+        "classifierInputTokens": 200609
+      },
+      "all/discovery": {
+        "n": 6,
+        "under": 1,
+        "exact": 3,
+        "over": 2,
+        "belowXhigh": 1,
+        "abstentions": 5,
+        "failures": 0,
+        "p50Ms": 413,
+        "p95Ms": 573,
+        "classifierInputTokens": 20981
+      },
+      "claude/fixed-high": {
+        "n": 67,
+        "under": 24,
+        "exact": 19,
+        "over": 24,
+        "belowXhigh": 67,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "claude/fixed-xhigh": {
+        "n": 67,
+        "under": 0,
+        "exact": 24,
+        "over": 43,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "claude/legacy": {
+        "n": 67,
+        "under": 8,
+        "exact": 33,
+        "over": 26,
+        "belowXhigh": 31,
+        "abstentions": 0,
+        "failures": 0,
+        "p50Ms": 415,
+        "p95Ms": 533,
+        "classifierInputTokens": 100342
+      },
+      "claude/context": {
+        "n": 67,
+        "under": 1,
+        "exact": 37,
+        "over": 29,
+        "belowXhigh": 24,
+        "abstentions": 48,
+        "failures": 0,
+        "p50Ms": 423,
+        "p95Ms": 529,
+        "classifierInputTokens": 200609
+      },
+      "claude/context-at-xhigh": {
+        "n": 67,
+        "under": 1,
+        "exact": 31,
+        "over": 35,
+        "belowXhigh": 12,
+        "abstentions": 48,
+        "failures": 0,
+        "p50Ms": 423,
+        "p95Ms": 529,
+        "classifierInputTokens": 200609
+      },
+      "claude/discovery": {
+        "n": 6,
+        "under": 1,
+        "exact": 3,
+        "over": 2,
+        "belowXhigh": 1,
+        "abstentions": 5,
+        "failures": 0,
+        "p50Ms": 413,
+        "p95Ms": 573,
+        "classifierInputTokens": 20981
+      },
+      "codex/fixed-high": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/fixed-xhigh": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/legacy": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/context": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/context-at-xhigh": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      },
+      "codex/discovery": {
+        "n": 0,
+        "under": 0,
+        "exact": 0,
+        "over": 0,
+        "belowXhigh": 0,
+        "abstentions": 0,
+        "failures": 0,
+        "classifierInputTokens": 0
+      }
+    },
+    "routing": {
+      "legacy": {
+        "n": 67,
+        "failures": 0,
+        "abstentions": 0,
+        "levels": {
+          "low": 3,
+          "medium": 21,
+          "high": 7,
+          "xhigh": 36
+        }
+      },
+      "context": {
+        "n": 67,
+        "failures": 0,
+        "abstentions": 48,
+        "levels": {
+          "low": 6,
+          "medium": 2,
+          "high": 16,
+          "xhigh": 43
+        }
+      },
+      "discovery": {
+        "n": 6,
+        "failures": 0,
+        "abstentions": 5,
+        "levels": {
+          "low": 0,
+          "medium": 0,
+          "high": 1,
+          "xhigh": 5
+        }
+      }
+    },
+    "limitations": [
+      "Labels are independent model judgments, not measured counterfactual task success.",
+      "No Claude generation was used for the evaluation.",
+      "Codex shell-tool evidence is available to the judge but not the current Claude plugin.",
+      "Replay uses historical evidence only; initial decisions exclude later tool output.",
+      "Raw transcripts and labels stay outside the repository."
+    ]
+  },
+  "pairs": [
+    {
+      "id": "toy-explain",
+      "pass": true,
+      "level": "medium",
+      "contextSufficient": true,
+      "missing": [],
+      "latencyMs": 205,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "kernel-explain",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": true,
+      "missing": [],
+      "latencyMs": 161,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "toy-unknown",
+      "pass": true,
+      "level": "high",
+      "contextSufficient": false,
+      "missing": [
+        "uncertain_context",
+        "missing_target"
+      ],
+      "latencyMs": 152,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "kernel-unknown",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": false,
+      "missing": [
+        "missing_target"
+      ],
+      "latencyMs": 172,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "kernel-typo",
+      "pass": true,
+      "level": "low",
+      "contextSufficient": true,
+      "missing": [],
+      "latencyMs": 152,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "toy-typo",
+      "pass": true,
+      "level": "low",
+      "contextSufficient": true,
+      "missing": [],
+      "latencyMs": 186,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "continue-hard",
+      "pass": false,
+      "level": "xhigh",
+      "contextSufficient": false,
+      "missing": [
+        "uncertain_context"
+      ],
+      "latencyMs": 166,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "new-easy-after-hard",
+      "pass": true,
+      "level": "low",
+      "contextSufficient": true,
+      "missing": [],
+      "latencyMs": 150,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "continue-missing",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": false,
+      "missing": [
+        "missing_target",
+        "missing_previous_task"
+      ],
+      "latencyMs": 154,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "self-contained",
+      "pass": true,
+      "level": "low",
+      "contextSufficient": true,
+      "missing": [],
+      "latencyMs": 151,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "tiny-hard",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": true,
+      "missing": [],
+      "latencyMs": 166,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    },
+    {
+      "id": "untrusted-comment",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": false,
+      "missing": [
+        "untrusted_routing_instruction"
+      ],
+      "latencyMs": 169,
+      "servedModel": "djev-spark-ec4ff3df-nvfp4"
+    }
+  ],
+  "cache": {
+    "sessions": 266,
+    "groups": {
+      "claude-sonnet-5/stable": {
+        "transitions": 33,
+        "anyRead": 33,
+        "atLeast95PercentPriorPrefix": 33,
+        "medianPriorPrefixReuse": 0.9999540103016924,
+        "freshInputTokens": 17822,
+        "cacheReadTokens": 1447135
+      },
+      "claude-opus-5/stable": {
+        "transitions": 1677,
+        "anyRead": 1676,
+        "atLeast95PercentPriorPrefix": 1656,
+        "medianPriorPrefixReuse": 0.999988344920425,
+        "freshInputTokens": 6037809,
+        "cacheReadTokens": 395083376
+      },
+      "claude-opus-5-5/stable": {
+        "transitions": 3399,
+        "anyRead": 3399,
+        "atLeast95PercentPriorPrefix": 3363,
+        "medianPriorPrefixReuse": 0.9999935332214581,
+        "freshInputTokens": 7619826,
+        "cacheReadTokens": 1124902958
+      },
+      "claude-fable-5-1/stable": {
+        "transitions": 142,
+        "anyRead": 142,
+        "atLeast95PercentPriorPrefix": 134,
+        "medianPriorPrefixReuse": 0.999822032390105,
+        "freshInputTokens": 1029839,
+        "cacheReadTokens": 23402617
+      },
+      "claude-opus-4-7/stable": {
+        "transitions": 501,
+        "anyRead": 501,
+        "atLeast95PercentPriorPrefix": 501,
+        "medianPriorPrefixReuse": 0.9999811053377421,
+        "freshInputTokens": 2470366,
+        "cacheReadTokens": 30767873
+      },
+      "claude-opus-5-5/changed": {
+        "transitions": 4,
+        "anyRead": 4,
+        "atLeast95PercentPriorPrefix": 4,
+        "medianPriorPrefixReuse": 0.999970187520496,
+        "freshInputTokens": 24341,
+        "cacheReadTokens": 238076
+      },
+      "claude-fable-5-1/changed": {
+        "transitions": 2,
+        "anyRead": 2,
+        "atLeast95PercentPriorPrefix": 1,
+        "medianPriorPrefixReuse": 1,
+        "freshInputTokens": 114123,
+        "cacheReadTokens": 173847
+      },
+      "claude-opus-4-8/stable": {
+        "transitions": 41,
+        "anyRead": 41,
+        "atLeast95PercentPriorPrefix": 40,
+        "medianPriorPrefixReuse": 0.9999948563507352,
+        "freshInputTokens": 74006,
+        "cacheReadTokens": 16397589
+      }
+    },
+    "limitations": "Historical same-model requests only. Other prompt changes and elapsed cache TTL are uncontrolled. This does not prove cache preservation for future model/API paths."
+  },
+  "verification": {
+    "pluginTests": 66,
+    "replayExtractionChecks": 3,
+    "typecheck": "passed",
+    "evaluatorBuild": "passed",
+    "pluginValidation": "passed",
+    "independentCodeReview": "unavailable: Claude weekly quota HTTP 429",
+    "freshClaudeGeneration": "not run: Claude weekly quota exhausted"
+  }
+}

@@ -51,7 +51,7 @@ export type Prompt = {
   recordedEffort?: string
 }
 
-type Label = { id: string; level: Choice; reason?: string }
+type Label = { id: string; level: Choice; reason?: string; scorable?: boolean }
 
 /**
  * What each context variant sends besides the prompt. `current` is what the
@@ -311,7 +311,7 @@ export function labelSets(): Map<string, Map<string, Choice>> {
   const sets = new Map<string, Map<string, Choice>>()
 
   const add = (name: string, path: string) => {
-    const rows = readJsonl<Label>(path).filter(row => isLevel(row.level) && row.level !== 'max')
+    const rows = readJsonl<Label>(path).filter(row => row.scorable !== false && isLevel(row.level) && row.level !== 'max')
 
     if (rows.length > 0) {
       sets.set(name, new Map(rows.map(row => [row.id, row.level])))
@@ -373,9 +373,9 @@ const LABEL_MODELS = ['deepseek-v4.1-flash', 'mimo-v2.6-pro', 'mimo-v2.6-flash']
 async function autolabel(): Promise<void> {
   const at = args.indexOf('--models')
   const models = at >= 0 ? String(args[at + 1]).split(',') : LABEL_MODELS
-  const rows = readJsonl<Prompt>(join(DATA, 'sample.jsonl')).map(p => ({ id: p.id, text: p.text, previous: p.previous }))
+  const rows = readJsonl<Prompt>(join(DATA, 'sample.jsonl')).map(p => ({ id: p.id, text: p.text, previous: p.previous, previousAnswer: p.previousAnswer, earlier: p.earlier }))
   const prompt = readFileSync(join(import.meta.dir, 'labeler-prompt.md'), 'utf8').replace(
-    /`sample\.jsonl` has \d+ JSONL rows/,
+    /`sample\.jsonl` contains JSONL rows/,
     `\`sample.jsonl\` has ${rows.length} JSONL rows`,
   )
 
