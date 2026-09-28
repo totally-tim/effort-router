@@ -1,11 +1,12 @@
 {
   "name": "effort-router",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Picks the reasoning effort for each turn of the main conversation with a System One classifier (hosted Jev or a compatible service) and shows the level on the spinner and on the line that closes the turn. In shadow mode it shows and logs its pick and sends the session's effort; in enforce mode it sends the pick. Requires CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1.",
   "author": {
     "name": "Tim Kraus",
     "url": "https://github.com/totally-tim"
   },
+  "types": "./types/effort-router.d.ts",
   "userConfig": {
     "mode": {
       "type": "string",
@@ -99,7 +100,7 @@
     "logDir": {
       "type": "string",
       "title": "Log directory",
-      "description": "Where the router writes one JSONL decision log per session. A leading ~ means the home directory.",
+      "description": "Where the router writes its JSONL decision logs (one file per plugin instance and session) and the resume checkpoints of each conversation. A leading ~ means the home directory.",
       "required": false,
       "default": "~/.local/state/effort-router"
     },

@@ -1,0 +1,231 @@
+{
+  "date": "2026-09-27",
+  "runtime_commit": "917741923721ef8ed6f3c2ee8c984be00833cbda",
+  "scope": "Three main Claude session logs; completed turns with v0.3 context fields, frozen during this investigation. Excludes transport failures and turns without those fields.",
+  "totals": {
+    "turns": 38,
+    "needs_context": 13,
+    "requests": 927,
+    "requests_in_turns_ending_needs_context": 494,
+    "no_evidence_turns": 33,
+    "needs_context_already_xhigh": 9,
+    "needs_context_guard_raised": 4
+  },
+  "sessions": [
+    {
+      "id": "040691ea-e039-4ff0-bae1-c4f17dd9d16d",
+      "turns": 24,
+      "needsContext": 6,
+      "requests": 328,
+      "requestsInNeedsContextTurns": 180,
+      "noEvidence": 22,
+      "reasons": {
+        "missing_target": 4,
+        "missing_evidence": 1,
+        "uncertain_context": 1
+      }
+    },
+    {
+      "id": "7ab5449d-cbb8-494a-8b2e-09750623aa89",
+      "turns": 6,
+      "needsContext": 4,
+      "requests": 485,
+      "requestsInNeedsContextTurns": 220,
+      "noEvidence": 4,
+      "reasons": {
+        "uncertain_context": 2,
+        "missing_evidence": 2
+      }
+    },
+    {
+      "id": "8aaca8fc-57e2-4294-9d24-5094b7c2c297",
+      "turns": 8,
+      "needsContext": 3,
+      "requests": 114,
+      "requestsInNeedsContextTurns": 94,
+      "noEvidence": 7,
+      "reasons": {
+        "missing_target": 3
+      }
+    }
+  ],
+  "replays": [
+    {
+      "request": "i logged you in",
+      "arm": "reconstructed",
+      "context_sufficient_probabilities": [
+        0.92,
+        0.85,
+        0.57
+      ],
+      "context_choices": [
+        "sufficient",
+        "sufficient",
+        "sufficient"
+      ],
+      "latencies_ms": [
+        421,
+        416,
+        421
+      ],
+      "route": {
+        "level": "xhigh",
+        "workLevel": "medium",
+        "contextSufficient": false,
+        "missing": [
+          "uncertain_context"
+        ],
+        "continuation": false,
+        "reason": "insufficient context"
+      }
+    },
+    {
+      "request": "i logged you in",
+      "arm": "task_summary",
+      "context_sufficient_probabilities": [
+        0.94,
+        0.99,
+        0.9
+      ],
+      "context_choices": [
+        "sufficient",
+        "sufficient",
+        "sufficient"
+      ],
+      "latencies_ms": [
+        298,
+        298,
+        298
+      ],
+      "route": {
+        "level": "high",
+        "workLevel": "high",
+        "contextSufficient": true,
+        "missing": [],
+        "continuation": true,
+        "reason": "classifier"
+      }
+    },
+    {
+      "request": "logged in again",
+      "arm": "reconstructed",
+      "context_sufficient_probabilities": [
+        0.05,
+        0.55,
+        0.1
+      ],
+      "context_choices": [
+        "missing_target",
+        "sufficient",
+        "missing_target"
+      ],
+      "latencies_ms": [
+        365,
+        365,
+        365
+      ],
+      "route": {
+        "level": "xhigh",
+        "workLevel": "high",
+        "contextSufficient": false,
+        "missing": [
+          "missing_target"
+        ],
+        "continuation": false,
+        "reason": "insufficient context"
+      }
+    },
+    {
+      "request": "logged in again",
+      "arm": "task_summary",
+      "context_sufficient_probabilities": [
+        0.88,
+        0.99,
+        0.93
+      ],
+      "context_choices": [
+        "sufficient",
+        "sufficient",
+        "sufficient"
+      ],
+      "latencies_ms": [
+        275,
+        275,
+        269
+      ],
+      "route": {
+        "level": "xhigh",
+        "workLevel": "high",
+        "contextSufficient": true,
+        "missing": [],
+        "continuation": true,
+        "reason": "continue task"
+      }
+    },
+    {
+      "request": "what else is missing or all migrations done?",
+      "arm": "reconstructed",
+      "context_sufficient_probabilities": [
+        0.97,
+        0.98,
+        0.32
+      ],
+      "context_choices": [
+        "sufficient",
+        "sufficient",
+        "missing_target"
+      ],
+      "latencies_ms": [
+        313,
+        318,
+        318
+      ],
+      "route": {
+        "level": "xhigh",
+        "workLevel": "high",
+        "contextSufficient": false,
+        "missing": [
+          "missing_target"
+        ],
+        "continuation": false,
+        "reason": "insufficient context"
+      }
+    },
+    {
+      "request": "what else is missing or all migrations done?",
+      "arm": "task_summary",
+      "context_sufficient_probabilities": [
+        0.95,
+        0.97,
+        0.36
+      ],
+      "context_choices": [
+        "sufficient",
+        "sufficient",
+        "sufficient"
+      ],
+      "latencies_ms": [
+        264,
+        264,
+        264
+      ],
+      "route": {
+        "level": "xhigh",
+        "workLevel": "high",
+        "contextSufficient": false,
+        "missing": [
+          "uncertain_context"
+        ],
+        "continuation": false,
+        "reason": "insufficient context"
+      }
+    }
+  ],
+  "replay_limits": "One replay per arm, three variants per replay. Inputs reconstructed from router logs and Claude transcripts, not original captured HTTP bodies. The task_summary arm adds a manually prepared summary as a diagnostic, not a deployed automatic summarizer.",
+  "isolated_reproductions": [
+    "Background notification overwrites the previous task reference.",
+    "After an action, sufficient discovery with unchanged effort leaves the old needs-context label and top-level context fields."
+  ],
+  "reproduction_result": "2 passed, 0 failed; tests assert the observed current defects in an isolated copy, not desired behavior.",
+  "production_changes": false
+}

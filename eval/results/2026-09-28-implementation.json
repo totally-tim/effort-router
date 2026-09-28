@@ -1,0 +1,92 @@
+{
+  "date": "2026-09-28",
+  "classifier": "local-decide",
+  "claudeVersion": "2.1.283",
+  "model": "claude-opus-5-5",
+  "routingFingerprint": "876ff18b5b51e50a",
+  "extractorFingerprint": "fdfcfc416d1d8604",
+  "verification": {
+    "pluginTests": {
+      "pass": 270,
+      "fail": 0
+    },
+    "typecheck": "pass",
+    "strictValidation": "pass",
+    "replayChecks": 22,
+    "fullE2E": {
+      "snapshot": "final-snapshot3",
+      "pass": 28,
+      "knownCacheFailures": 2,
+      "otherFailures": 0,
+      "skips": 0,
+      "exit": 3
+    },
+    "nativeQueue": {
+      "snapshot": "final-snapshot3",
+      "scenarios": 10,
+      "assertions": 54,
+      "pass": true
+    },
+    "nativeLifecycle": {
+      "snapshot": "final-snapshot3",
+      "scenarios": 8,
+      "assertions": 135,
+      "pass": true
+    },
+    "focusedE2EAfterInheritanceCorrection": {
+      "snapshot": "final-snapshot4",
+      "pass": 4,
+      "fail": 0,
+      "skips": 0,
+      "exit": 0
+    },
+    "lastCorrection": "Exact independent reviewer-tested three-line inheritance correction; both defect tests fail before/pass after. Full plugin suite passes. No native CAS contention was produced."
+  },
+  "historical": {
+    "matchedRecords": 113,
+    "changedRecords": 78,
+    "repetitions": 3,
+    "assessmentsPerVersion": 234,
+    "failedAssessments": 0,
+    "sufficientBefore": 77,
+    "sufficientAfter": 90,
+    "belowLabelsAtXhighBefore": 2,
+    "belowLabelsAtXhighAfter": 1,
+    "belowLabelsAtHighBefore": 10,
+    "belowLabelsAtHighAfter": 4,
+    "xhighChoicesBefore": 169,
+    "xhighChoicesAfter": 170,
+    "newCallsRequiredForFinalCode": 0,
+    "datasets": {
+      "47": {
+        "pairedRecords": 28,
+        "deltaSufficientP": {
+          "mean": -0.007976190476190458,
+          "ci95": [
+            -0.05369047619047619,
+            0.03392857142857143
+          ],
+          "up": 9,
+          "down": 9
+        }
+      },
+      "67": {
+        "pairedRecords": 50,
+        "deltaSufficientP": {
+          "mean": 0.04086666666666665,
+          "ci95": [
+            -0.010933333333333328,
+            0.10046666666666665
+          ],
+          "up": 23,
+          "down": 19
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Historical labels are model judgments, not task success. Confidence intervals include zero; no general confidence or cost gain is established.",
+    "Two observed Claude cache failures remain; full E2E exit 3 is not green.",
+    "Normal batch fallback, unbounded completion state read, and double reload after a refused transfer remain host assumptions; see report."
+  ]
+}

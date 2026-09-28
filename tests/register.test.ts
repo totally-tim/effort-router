@@ -294,6 +294,55 @@ describe('register', () => {
     expect(w.sent).toEqual(['low', 'medium'])
   })
 
+  test('an existing session recovers after the outage cooldown without a reset', async ($, on) => {
+    // Literal requests collapse the ensemble to one distinct call per turn.
+    const w = world(on, { answers: [503, 503, 503, { low: 1 }] })
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    for (const turnId of ['t1', 't2', 't3', 'paused']) {
+      await $.turn.start({ text: 'Reply with exactly OK.', turnId })
+      await step($, turnId, 0, 'xhigh')
+      if (turnId === 'paused') {
+        await w.clock.advance(300001)
+        await w.clock.settle()
+        expect(w.posts, 'time passing alone does not retry during a running turn').toHaveLength(3)
+        await step($, turnId, 1, 'xhigh')
+        expect(w.posts, 'the next request of the running turn retries once').toHaveLength(4)
+      }
+      await complete($, turnId)
+    }
+    expect(w.posts).toHaveLength(4)
+    expect(w.records()[3]).toMatchObject({ reason: 'retained effort', sent: 'xhigh' })
+    expect(w.records()[3]?.steps).toMatchObject([{ sent: 'xhigh' }, { sent: 'xhigh' }])
+    for (const turnId of ['recovered', 'still-healthy']) {
+      await $.turn.start({ text: 'Reply with exactly OK.', turnId })
+      await step($, turnId, 0, 'xhigh')
+      expect(await spinner($, w.drawn)).toBe('Baking… at low effort')
+      await complete($, turnId)
+    }
+    expect(w.posts).toHaveLength(6)
+    expect(w.sent).toEqual(['xhigh', 'xhigh', 'xhigh', 'xhigh', 'xhigh', 'low', 'low'])
+    expect(await command($, 'status')).toContain('ok (')
+    expect(w.records()[4]).toMatchObject({ reason: 'classifier', context_sufficient: true, sent: 'low' })
+  })
+
+  test('needs context is a healthy abstention and does not stick to the next task', async ($, on) => {
+    const w = world(on, { contexts: ['missing_evidence', 'sufficient'] })
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Investigate the migration plan.', turnId: 'unclear' })
+    await step($, 'unclear', 0, 'xhigh')
+    expect(await spinner($, w.drawn)).toBe('Baking… at xhigh effort (router: needs context)')
+    expect(await command($, 'status')).toContain('ok (')
+    await complete($, 'unclear')
+    await $.turn.start({ text: 'Reply with exactly OK.', turnId: 'literal' })
+    await step($, 'literal', 0, 'xhigh')
+    expect(await spinner($, w.drawn)).toBe('Baking… at low effort')
+    await complete($, 'literal')
+    expect(w.sent).toEqual(['xhigh', 'low'])
+    expect(w.records()[1]).toMatchObject({ reason: 'classifier', context_sufficient: true })
+  })
+
   test('two failed tools raise the rest of the turn by one level', async ($, on) => {
     const w = world(on)
 
@@ -406,7 +455,7 @@ describe('register', () => {
     expect(await command($, 'wrong medium')).toBe('labeled turn t1 as medium')
     expect(await command($, 'wrong huge')).toContain('usage')
     expect(w.records()[1]).toMatchObject({ type: 'label', turnId: 't1', level: 'medium', would_pick: 'low' })
-    expect(w.files.has(LOG_FILE)).toBe(true)
+    expect([...w.files.keys()].some(path => path.startsWith(LOG_FILE.replace(/\.jsonl$/, '.')) && path.endsWith('.jsonl'))).toBe(true)
     expect(HOME).toBe('/Users/t')
   })
 
@@ -452,8 +501,11 @@ describe('register', () => {
     expect(w.sent).toEqual(['high', 'high'])
   })
 
-  test('queued prompts and messages nobody typed are not classified mid-turn', async ($, on) => {
-    const w = world(on)
+  // `wait` only asks a prompt to wait its turn: the engine delivers every prompt typed mid-turn at the
+  // running turn's next tool result either way (PromptSubmitInput.wait; Claude Code 2.1.283 with
+  // Opus 5.5 delivered a ctrl+x Enter prompt as a `queued_command` attachment inside the turn).
+  test('a queued prompt is classified like any typed prompt; messages nobody typed are not', async ($, on) => {
+    const w = world(on, { answers: [{ low: 0.98, medium: 0.02 }, { xhigh: 1 }] })
 
     on('prompt.submit', ($, e) => ({ text: e.text }))
 
@@ -461,12 +513,21 @@ describe('register', () => {
     await command($, 'enforce')
     await $.turn.start({ text: 'push the PR', turnId: 't1' })
     await step($, 't1', 0, 'xhigh')
-    await $.prompt.submit({ text: 'next: redesign it', turnId: 't1', wait: true, origin: { kind: 'composer' } })
-    await $.prompt.submit({ text: 'task finished', turnId: 't1', wait: false, origin: { kind: 'task-notification' } } as never)
+
+    for (const origin of [{ kind: 'task-notification' }, { kind: 'peer' }, { kind: 'plugin', name: 'other' }, { kind: 'sdk' }]) {
+      await $.prompt.submit({ text: 'task finished', turnId: 't1', wait: false, origin } as never)
+    }
+
     await step($, 't1', 1, 'xhigh')
 
     expect(w.posts).toHaveLength(1)
     expect(w.sent).toEqual(['low', 'low'])
+
+    await $.prompt.submit({ text: 'next: redesign it', turnId: 't1', wait: true, origin: { kind: 'composer' } })
+    await step($, 't1', 2, 'xhigh')
+
+    expect(w.posts).toHaveLength(2)
+    expect(w.sent).toEqual(['low', 'low', 'xhigh'])
   })
 
   test('an effort set by hand pauses the router until it is back at the usual level', async ($, on) => {
@@ -733,6 +794,278 @@ describe('register', () => {
     await $.tool.call({ tool: 'Read', file_path: '/work/app.ts' })
     await step($, 't1', 2, 'high')
     expect(w.sent).toEqual(['high', 'high', 'high'])
+    expect(await spinner($, w.drawn)).toBe('Baking… at high effort (kept for active work)')
+    await complete($, 't1')
+    expect(w.records()[0]).toMatchObject({ reason: 'work in progress', context_sufficient: true, context_held: false, missing_context: [] })
+  })
+
+  test('resolved context clears the warning when the new pick equals the retained effort', async ($, on) => {
+    const w = world(on, { contexts: ['missing_evidence', 'sufficient'], answers: [{ low: 1 }, { high: 1 }] })
+    on('tool.call', () => ({ result: {}, text: 'function start() { return run() }', isReadOnly: true }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Explain the application', turnId: 't1' })
+    await step($, 't1', 0, 'high')
+    expect(await spinner($, w.drawn)).toContain('router: needs context')
+    await $.tool.call({ tool: 'Read', file_path: '/work/app.ts' })
+    await step($, 't1', 1, 'high')
+    expect(await spinner($, w.drawn)).toBe('Baking… at high effort')
+    await complete($, 't1')
+    expect(w.records()[0]).toMatchObject({ context_sufficient: true, context_held: false, reason: 'classifier' })
+  })
+
+  test('a partial context outage is reported as a failure and recovers on the next turn', async ($, on) => {
+    const w = world(on, { answers: [{ low: 1 }, { low: 1 }, { low: 1 }, { low: 1 }, 503, { low: 1 }] })
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    for (let i = 0; i < 2; i++) {
+      await $.turn.start({ text: `Check item ${i}`, turnId: `prior${i}` })
+      await step($, `prior${i}`, 0, 'xhigh')
+      await complete($, `prior${i}`)
+    }
+    await $.turn.start({ text: 'Check the next item', turnId: 'outage' })
+    await step($, 'outage', 0, 'xhigh')
+    expect(JSON.parse(w.posts[4]!.init!.body!).state.earlier_exchanges).toHaveLength(1)
+    expect(w.sent.at(-1)).toBe('xhigh')
+    expect(await spinner($, w.drawn)).toContain('router: context assessment: http 503')
+    expect(await command($, 'status')).toContain('failing (context assessment: http 503)')
+    await complete($, 'outage')
+    await $.turn.start({ text: 'Check the remaining item', turnId: 'recovered' })
+    await step($, 'recovered', 0, 'xhigh')
+    expect(w.sent.at(-1)).toBe('low')
+    expect(await command($, 'status')).toContain('ok (')
+  })
+
+  test('background completions preserve the user task, its effort and pending answer tail', async ($, on) => {
+    const w = world(on)
+    on('prompt.submit', ($, e) => ({ text: e.text }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    const original = 'Think hard about migrating the applications after DNS login.'
+    await $.turn.start({ text: original, turnId: 'task' })
+    await step($, 'task', 0, 'xhigh')
+    await $.turn.complete({ turnId: 'task', answer: 'Migration progress. ' + 'detail '.repeat(400) + 'Pending: sign in to DNS.', durationMs: 10, isAborted: false, reason: 'answer' })
+    for (let i = 0; i < 4; i++) {
+      const turnId = `notification${i}`
+      const text = i === 0 ? 'Image copy finished' : '<task-notification><summary>Image copy finished</summary></task-notification>'
+      await $.prompt.submit({ text, wait: false, origin: { kind: 'task-notification' } })
+      await $.turn.start({ text, turnId })
+      await step($, turnId, 0, 'xhigh')
+      await complete($, turnId)
+    }
+    await $.turn.start({ text: 'Continue', turnId: 'followup' })
+    await step($, 'followup', 0, 'xhigh')
+    const followups = w.posts.map(p => JSON.parse(p.init!.body!)).filter(b => b.state.request === 'Continue')
+    expect(followups.length > 0).toBe(true)
+    for (const { state } of followups) {
+      expect(state.previous_request).toBe(original)
+      // The latest visible reply answered a background completion; the task keeps its pending tail.
+      expect(state.previous_answer).toBe('done')
+      expect(state.task_context.previousTask.answer).toContain('Pending: sign in to DNS.')
+      expect(state.task_context.previousTask).toMatchObject({ request: original, level: 'xhigh' })
+      expect(JSON.stringify(state)).not.toContain('Image copy finished')
+    }
+    expect(w.sent.at(-1)).toBe('xhigh')
+    await complete($, 'followup')
+    expect(w.records().filter(r => r.task_notification)).toHaveLength(4)
+    await $.turn.start({ text: 'Reply OK', turnId: 'new-task' })
+    await step($, 'new-task', 0, 'xhigh')
+    expect(w.sent.at(-1)).toBe('low')
+  })
+
+  test('a shell cd keeps the task memory; a project move starts fresh', async ($, on) => {
+    const w = world(on)
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Migrate the hosting projects.', turnId: 'task' })
+    await step($, 'task', 0, 'xhigh')
+    await $.turn.complete({ turnId: 'task', answer: 'Pending: sign in to DNS.', durationMs: 10, isAborted: false, reason: 'answer' })
+    w.location.cwd = '/work/hosting'
+    await $.turn.start({ text: 'logged in', turnId: 'followup' })
+    await step($, 'followup', 0, 'xhigh')
+    const followup = JSON.parse(w.posts.at(-1)!.init!.body!).state
+    expect(followup.previous_request).toBe('Migrate the hosting projects.')
+    expect(followup.task_context.repository.cwd).toBe('/work/hosting')
+    expect(followup.task_context.previousTask.request).toBe('Migrate the hosting projects.')
+    await complete($, 'followup')
+    w.location.cwd = '/other'
+    w.location.root = '/other'
+    await $.turn.start({ text: 'Explain the build.', turnId: 'moved' })
+    await step($, 'moved', 0, 'xhigh')
+    const moved = JSON.parse(w.posts.at(-1)!.init!.body!).state
+    expect(moved.previous_request).toBeUndefined()
+    expect(moved.task_context.previousTask).toBeUndefined()
+  })
+
+  test('entering and leaving a worktree of the same repository keeps the task memory', async ($, on) => {
+    const w = world(on, { files: { '/work/.git': '<directory>', '/work/.claude/worktrees/wt/.git': 'gitdir: /work/.git/worktrees/wt\n', '/work/.git/worktrees/wt/commondir': '../..\n',
+      '/work/sibling-wt/.git': 'gitdir: ../.git/worktrees/sibling-wt\n', '/work/.git/worktrees/sibling-wt/commondir': '../..\n' } })
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Migrate the hosting projects.', turnId: 'task' })
+    await step($, 'task', 0, 'xhigh')
+    await $.turn.complete({ turnId: 'task', answer: 'Pending: sign in to DNS.', durationMs: 10, isAborted: false, reason: 'answer' })
+    let previous = 'Migrate the hosting projects.'
+    for (const [turnId, root] of [['in-worktree', '/work/.claude/worktrees/wt'], ['relative-worktree', '/work/sibling-wt'], ['back', '/work']] as const) {
+      w.location.cwd = root
+      w.location.root = root
+      await $.turn.start({ text: `logged in (${turnId})`, turnId })
+      await step($, turnId, 0, 'xhigh')
+      const state = JSON.parse(w.posts.at(-1)!.init!.body!).state
+      expect([turnId, state.previous_request, state.task_context.previousTask?.request]).toEqual([turnId, previous, previous])
+      await complete($, turnId)
+      previous = `logged in (${turnId})`
+    }
+  })
+
+  test('a worktree of another repository or a plain directory is a new project', async ($, on) => {
+    const w = world(on, { files: { '/work/.git': '<directory>', '/other/.git': '<directory>', '/other/.claude/worktrees/wt/.git': 'gitdir: /other/.git/worktrees/wt\n',
+      '/other/.git/worktrees/wt/commondir': '../..\n', '/work/mod/.git': 'gitdir: ../.git/modules/mod\n' } })
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    for (const [turnId, root] of [['start', '/work'], ['other-worktree', '/other/.claude/worktrees/wt'], ['submodule', '/work/mod'], ['plain', '/plain']] as const) {
+      w.location.cwd = root
+      w.location.root = root
+      await $.turn.start({ text: `Explain the build (${turnId}).`, turnId })
+      await step($, turnId, 0, 'xhigh')
+      const state = JSON.parse(w.posts.at(-1)!.init!.body!).state
+      expect([turnId, state.previous_request, state.task_context.previousTask]).toEqual([turnId, undefined, undefined])
+      await complete($, turnId)
+    }
+  })
+
+  test('a symbolic link to the repository and a worktree of it share one project, reading no .git directory', async ($, on) => {
+    const w = world(on, { files: { '/work/.git': '<directory>', '/work/.claude/worktrees/wt/.git': 'gitdir: /work/.git/worktrees/wt\n',
+      '/work/.git/worktrees/wt/commondir': '../..\n' }, links: { '/link': '/work' } })
+    w.location.cwd = '/link'
+    w.location.root = '/link'
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Migrate the hosting projects.', turnId: 'task' })
+    await step($, 'task', 0, 'xhigh')
+    await $.turn.complete({ turnId: 'task', answer: 'Pending: sign in to DNS.', durationMs: 10, isAborted: false, reason: 'answer' })
+    w.location.cwd = '/work/.claude/worktrees/wt'
+    w.location.root = '/work/.claude/worktrees/wt'
+    await $.turn.start({ text: 'logged in', turnId: 'in-worktree' })
+    await step($, 'in-worktree', 0, 'xhigh')
+    const state = JSON.parse(w.posts.at(-1)!.init!.body!).state
+    expect([state.previous_request, state.task_context.previousTask?.request]).toEqual(['Migrate the hosting projects.', 'Migrate the hosting projects.'])
+    // The engine logs a rejected read of a directory as an error.
+    expect(w.directoryReads).toEqual([])
+  })
+
+  test('a background reply becomes the previous answer without replacing the task', async ($, on) => {
+    const w = world(on)
+    on('prompt.submit', ($, e) => ({ text: e.text }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    const original = 'Think hard about migrating the applications.'
+    await $.turn.start({ text: original, turnId: 'task' })
+    await step($, 'task', 0, 'xhigh')
+    await $.turn.complete({ turnId: 'task', answer: 'Started the moves; a monitor reports progress.', durationMs: 10, isAborted: false, reason: 'answer' })
+    const text = '<task-notification><summary>Move finished</summary></task-notification>'
+    await $.prompt.submit({ text, wait: false, origin: { kind: 'task-notification' } })
+    await $.turn.start({ text, turnId: 'notification' })
+    await step($, 'notification', 0, 'xhigh')
+    await $.turn.complete({ turnId: 'notification', answer: 'The move finished. Please sign in to Squarespace so I can switch DNS.', durationMs: 10, isAborted: false, reason: 'answer' })
+    await $.turn.start({ text: 'logged in', turnId: 'followup' })
+    await step($, 'followup', 0, 'xhigh')
+    const bodies = w.posts.map(p => JSON.parse(p.init!.body!)).filter(b => b.state.request === 'logged in')
+    expect(bodies.length > 0).toBe(true)
+    for (const { state } of bodies) {
+      expect(state.previous_request).toBe(original)
+      expect(state.previous_answer).toContain('sign in to Squarespace')
+      expect(state.task_context.previousTask).toMatchObject({ request: original, level: 'xhigh' })
+      expect(state.task_context.previousTask.answer).toContain('Started the moves')
+      expect(JSON.stringify(state)).not.toContain('Move finished')
+    }
+    await complete($, 'followup')
+    await $.turn.start({ text: 'Anything else?', turnId: 'next' })
+    await step($, 'next', 0, 'xhigh')
+    expect(JSON.parse(w.posts.at(-1)!.init!.body!).state.previous_answer).toBe('done')
+  })
+
+  test('unapplied abstention or failure cannot reopen lowering of a confident pick', async ($, on) => {
+    const w = world(on, { answers: [{ xhigh: 1 }, { low: 1 }, { low: 1 }, { xhigh: 1 }, 503, { low: 1 }],
+      contexts: ['sufficient', 'missing_scope', 'sufficient', 'sufficient', 'sufficient', 'sufficient'] })
+    on('tool.call', (_$, e) => ({ result: {}, text: `source ${'file_path' in e ? e.file_path : ''}`, isReadOnly: true }))
+    for (const turnId of ['abstention', 'failure']) {
+      // Fresh session keeps the classifier calls for each turn deduplicated.
+      await $.session.start(STARTED)
+      await command($, 'enforce')
+      await $.turn.start({ text: 'Explain the application', turnId })
+      await step($, turnId, 0, 'high')
+      await $.tool.call({ tool: 'Read', file_path: '/work/a.ts' })
+      await step($, turnId, 1, 'high')
+      expect(await spinner($, w.drawn)).not.toContain('router: needs context')
+      await $.tool.call({ tool: 'Read', file_path: '/work/b.ts' })
+      await step($, turnId, 2, 'high')
+      expect(await spinner($, w.drawn)).not.toContain('kept for active work')
+      await complete($, turnId)
+    }
+    expect(w.sent).toEqual(['xhigh', 'xhigh', 'xhigh', 'xhigh', 'xhigh', 'xhigh'])
+  })
+
+  test('a user-typed notification envelope remains part of the user task', async ($, on) => {
+    const w = world(on)
+    on('prompt.submit', ($, e) => ({ text: e.text }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    const text = '<task-notification>Example</task-notification> Explain this XML.'
+    await $.prompt.submit({ text, wait: false, origin: { kind: 'composer' } })
+    await $.turn.start({ text, turnId: 'user' })
+    await step($, 'user', 0, 'xhigh')
+    await complete($, 'user')
+    expect(w.records()[0]?.task_notification).toBe(false)
+    await $.turn.start({ text: 'Continue', turnId: 'next' })
+    await step($, 'next', 0, 'xhigh')
+    expect(w.posts.map(p => JSON.parse(p.init!.body!)).filter(b => b.state.request === 'Continue')
+      .every(b => b.state.task_context.previousTask.request === text)).toBe(true)
+  })
+
+  test('an equal-level unapplied abstention cannot reopen lowering of a confident pick', async ($, on) => {
+    const w = world(on, { answers: [{ xhigh: 1 }, { low: 1 }, { low: 1 }], contexts: ['sufficient', 'missing_scope', 'sufficient'] })
+    on('tool.call', (_$, e) => ({ result: {}, text: `source ${'file_path' in e ? e.file_path : ''}`, isReadOnly: true }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Explain the application', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    await $.tool.call({ tool: 'Read', file_path: '/work/a.ts' })
+    await step($, 't1', 1, 'xhigh')
+    expect(await spinner($, w.drawn)).not.toContain('router: needs context')
+    await $.tool.call({ tool: 'Read', file_path: '/work/b.ts' })
+    await step($, 't1', 2, 'xhigh')
+    await complete($, 't1')
+    expect(w.sent).toEqual(['xhigh', 'xhigh', 'xhigh'])
+    expect(w.records()[0]).toMatchObject({ context_held: false, context_sufficient: true, reason: 'retained effort' })
+  })
+
+  test('successful discovery after initial failure clears the failure without inventing active work', async ($, on) => {
+    const w = world(on, { answers: [503, { low: 1 }] })
+    on('tool.call', () => ({ result: {}, text: 'button.onclick = () => count++', isReadOnly: true }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Explain the application', turnId: 't1' })
+    await step($, 't1', 0, 'high')
+    await $.tool.call({ tool: 'Read', file_path: '/work/app.ts' })
+    await step($, 't1', 1, 'high')
+    await complete($, 't1')
+    expect(w.sent).toEqual(['high', 'high'])
+    expect(w.records()[0]).toMatchObject({ context_held: false, context_sufficient: true, reason: 'retained effort' })
+    expect(await command($, 'status')).toContain('ok (')
+  })
+
+  test('a downstream prompt rewrite retains the submitted origin', async ($, on) => {
+    const w = world(on)
+    const rewritten = '<task-notification>Example</task-notification> Explain this XML.'
+    on('prompt.submit', () => ({ text: rewritten }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.prompt.submit({ text: 'Explain the example.', wait: false, origin: { kind: 'composer' } })
+    await $.turn.start({ text: rewritten, turnId: 'rewritten' })
+    await step($, 'rewritten', 0, 'xhigh')
+    await complete($, 'rewritten')
+    expect(w.records()[0]?.task_notification).toBe(false)
   })
 
   test('late concurrency evidence raises even a low baseline after the remote discovery budget', async ($, on) => {

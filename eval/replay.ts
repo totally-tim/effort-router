@@ -1,11 +1,14 @@
 #!/usr/bin/env bun
 /** Local-only, reproducible transcript replay. Raw data stays outside the repository. */
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync, appendFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, appendFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { answerOf, averageAnswers, inputVariants, requestOf, type Answer, type ClassifyInput } from '../hooks/classify'
-import { addObservation, boundedContext, excerpt, observationOf, redact, sensitiveSource, sensitiveOutput, type Observation } from '../hooks/context'
+import { fileURLToPath } from 'node:url'
+import { batchTaskOf, taskMemoryOf, type Entered } from '../hooks/batch'
+import { answerOf, averageAnswers, contextVariantIndex, inputVariants, requestOf, type Answer, type ClassifyInput } from '../hooks/classify'
+import { addObservation, boundedContext, excerpt, isTaskNotification, observationOf, projectOf, redact, sensitiveSource, sensitiveOutput, type Observation, type ProjectFs, type Task } from '../hooks/context'
+import { EMPTY_MEMORY, afterNotification, afterTask, continuationOf, inputOf, type Memory } from '../hooks/memory'
 import { isLevel, pickOf, rankOf, routeOf, type Level } from '../hooks/policy'
 import { pairs } from './pairs'
 
@@ -17,16 +20,37 @@ const classifier = option('model', 'local-decide')
 const judge = option('judge', 'local-smart')
 const seed = option('seed', 'context-routing-v1')
 const EVALUATION_VERSION = 2
-const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16)
-const routingVersion = () => hash(['../hooks/classify.ts', '../hooks/context.ts', '../hooks/policy.ts'].map(path => readFileSync(new URL(path, import.meta.url), 'utf8')))
+export const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16)
+/** Every file under `hooks/`, which holds every input of live routing; a new module is included when it is added. */
+export function routingVersion(tree = fileURLToPath(new URL('..', import.meta.url))): string {
+  const dir = join(tree, 'hooks')
+  return hash(readdirSync(dir, { recursive: true, encoding: 'utf8' }).filter(name => /\.(?:[cm]?[jt]s|json)$/.test(name)).sort()
+    .map(name => [name, readFileSync(join(dir, name), 'utf8')]))
+}
 const load = <T>(name: string): T[] => existsSync(join(root, name)) ? readFileSync(join(root, name), 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)) : []
 const save = (name: string, rows: unknown[]) => writeFileSync(join(root, name), rows.map(row => JSON.stringify(row)).join('\n') + '\n', { mode: 0o600 })
 const append = (name: string, row: unknown) => appendFileSync(join(root, name), JSON.stringify(row) + '\n', { mode: 0o600 })
 type Row = Record<string, any>
-type Sample = {
+/** Where replay departs from what the live router had. Absent fields mean the transcript settles them. */
+export type Provenance = {
+  /** Prompts the transcript shows delivered together into this turn. */
+  batch?: number
+  /** Prompts delivered into the running turn; task memory keeps them. */
+  delivered?: number
+  /** The first task after `/clear`, which starts with empty memory. */
+  cleared?: true
+  /** Codex prompts before this task that reached no model, with no turn boundary to place them; replay left them out. */
+  unplaced?: number
+  /** The root moved to a directory that is gone today, so a project change is unknown; memory was kept. */
+  project?: 'unverified'
+  /** Memory the live router derived from classifier answers: the previous task's level, or whether it continued an earlier task. */
+  unknown?: ('previousTask.level' | 'previousTask.request')[]
+}
+export type Sample = {
   id: string; source: 'claude' | 'codex'; session: string; timestamp: string; cwd: string;
   input: ClassifyInput; discovery: Observation[]; judgeEvidence: string;
   outcome: { requests: number; errors: number; effort?: string; input: number; output: number; cacheRead: number; cacheWrite: number; durationMs?: number }
+  provenance?: Provenance
 }
 
 function files(dir: string): string[] {
@@ -42,107 +66,221 @@ function content(value: unknown): string {
   return ''
 }
 function isHuman(text: string): boolean {
-  return text.trim().length > 1 && !/^\s*(?:# AGENTS\.md|<environment_context>|<INSTRUCTIONS>|<system-reminder>|<task-notification>|<command-|\[Request interrupted|You are .*agent)/i.test(text)
+  return text.trim().length > 1 && !/^\s*(?:# AGENTS\.md|<environment_context>|<INSTRUCTIONS>|<system-reminder>|<command-|\[Request interrupted|You are .*agent)/i.test(text)
 }
 
-/** Reads only historical evidence. Never reads today's checkout to label old work. */
-export function extract(path: string, source: Sample['source']): Sample[] {
+/** Today's Git layout, for project identity only. */
+const diskFs: ProjectFs = {
+  exists: async path => existsSync(path),
+  stat: async path => {
+    const stat = statSync(path)
+    return { kind: stat.isFile() ? 'file' : stat.isDirectory() ? 'dir' : 'other', realPath: realpathSync(path) }
+  },
+  read: async path => readFileSync(path, 'utf8'),
+}
+const HISTORICAL_SUMMARY = 'Historical working directory only; repository description unavailable.'
+/** Codex writes these as user messages, but no person typed them. */
+const CODEX_HOST = /^\s*<(?:recommended_plugins|turn_aborted)>/
+/** A subagent's completion, Codex's counterpart of a background completion. */
+const CODEX_NOTIFICATION = /^\s*<subagent_notification>/
+
+/**
+ * Every task the live router would remember, oldest first. Reads only historical evidence, plus today's Git
+ * layout when the session root moved; never reads today's checkout to label old work. Task memory is built by
+ * the live router's own functions from what the transcript shows reached the model; see `Provenance` for what
+ * it cannot show.
+ */
+export async function extract(path: string, source: Sample['source'], options: { entrypoints?: readonly string[]; fs?: ProjectFs } = {}): Promise<Sample[]> {
   const rows = lines(path)
   if (source === 'codex' && rows.some(r => r.type === 'session_meta' && (r.payload.parent_thread_id || r.payload.source?.subagent))) return []
   const session = path.split('/').pop()!.replace('.jsonl', '')
-  let cwd = '', effort: string | undefined, active: Sample | undefined, previous: Sample | undefined
-  let previousAnswer = '', answer = '', stoppedDiscovery = false
-  const out: Sample[] = [], calls = new Map<string, { tool: string; input: Row }>(), requestIds = new Set<string>()
-  const answerHeads = new Map<string, string>()
-  function finish() {
-    if (!active) return
-    active.judgeEvidence = excerpt(active.judgeEvidence + '\nFinal response:\n' + answer, 18000)
-    answerHeads.set(active.id, redact(answer).slice(0, 1000))
-    out.push(active); previous = active; previousAnswer = answer; active = undefined
+  const entrypoints = options.entrypoints ?? ['cli'], fs = options.fs ?? diskFs
+  const identityOf = async (dir: string) => await fs.exists(dir).catch(() => false) ? projectOf(dir, fs) : undefined
+  type Turn = {
+    request: string; notification: boolean; sample?: Sample; continued?: Task; delivered: Entered[]; observed: Observation[]
+    requests: Set<string>; text: string; texts: Map<string, string>; lastMessage?: string; interrupted: boolean; stoppedDiscovery: boolean
   }
-  function user(text: string, ts: string) {
-    if (!isHuman(text)) return
+  let cwd = '', sessionRoot = '', projectRoot = '', effort: string | undefined, turn: Turn | undefined
+  let memory: Memory = EMPTY_MEMORY, relationUnknown = false, cleared = false, unverified = false, unplaced = 0
+  // Prompts that entered the next turn before it answered. A Claude batch shares one timestamp; a Codex turn has an id.
+  let entered: (Entered & { ts: string; turn?: string })[] = []
+  // The open Codex turn: `task_started` opens it, `task_complete` or `turn_aborted` closes it.
+  let codexTurn: string | undefined
+  const out: Sample[] = [], calls = new Map<string, { tool: string; input: Row }>()
+
+  function enter(text: string, ts: string, origin: string) {
     finish()
-    active = {
-      id: hash([source, session, ts, text]), source, session, timestamp: ts, cwd,
-      input: { request: excerpt(text, 8000), previousRequest: previous?.input.request, previousAnswer: excerpt(previousAnswer, 2000),
-        earlier: out.slice(-3, -1).map(s => ({ request: s.input.request, answer: answerHeads.get(s.id) })),
-        previousTurn: previous ? { toolErrors: previous.outcome.errors, requests: previous.outcome.requests, interrupted: false } : undefined,
-        context: { repository: { cwd, summary: 'Historical working directory only; repository description unavailable.' }, observations: [],
-          ...(previous ? { previousTask: { request: previous.input.request, answer: excerpt(previousAnswer, 2000), observations: previous.discovery } } : {}) } },
-      discovery: [], judgeEvidence: '', outcome: { requests: 0, errors: 0, effort, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    // A prompt that reached no model before the next one entered is not a turn the router remembers.
+    if (entered.length > 0 && entered[0]!.ts !== ts) entered = []
+    entered.push({ text, origin, ts })
+  }
+  function enterCodex(text: string, ts: string, origin: string) {
+    finish()
+    // Only prompts of one open turn are one delivery. Earlier prompts outside it reached no model.
+    if (entered.length > 0 && (codexTurn === undefined || entered[0]!.turn !== codexTurn)) drop()
+    entered.push({ text, origin, ts, turn: codexTurn })
+  }
+  /** Prompts that reached no model; without a turn of their own the transcript cannot place them, and the next task says so. */
+  function drop() {
+    if (entered[0]?.turn === undefined) unplaced += entered.length
+    entered = []
+  }
+  async function begin() {
+    if (turn || entered.length === 0) return
+    // The last prompt completes the delivery; frozen samples are keyed by its timestamp.
+    const ts = entered.at(-1)!.ts, batch = entered.length, { request, notification } = batchTaskOf(entered)
+    entered = []
+    // The live router checks identity when the root changes; a shell `cd` never changes it.
+    if (sessionRoot !== projectRoot) {
+      const [was, now] = projectRoot ? await Promise.all([identityOf(projectRoot), identityOf(sessionRoot)]) : []
+      if (was === undefined || now === undefined) unverified ||= projectRoot !== ''
+      else if (was !== now) { memory = EMPTY_MEMORY; relationUnknown = false }
+      projectRoot = sessionRoot
     }
-    answer = ''; stoppedDiscovery = false; calls.clear(); requestIds.clear()
+    turn = { request, notification, continued: memory.previousTask, delivered: [], observed: [], requests: new Set(), text: '', texts: new Map(), interrupted: false, stoppedDiscovery: false }
+    if (notification) return
+    const unknown: NonNullable<Provenance['unknown']> = [...(memory.previousTask ? ['previousTask.level' as const] : []), ...(relationUnknown ? ['previousTask.request' as const] : [])]
+    const provenance: Provenance = { ...(batch > 1 ? { batch } : {}), ...(cleared ? { cleared: true as const } : {}), ...(unverified ? { project: 'unverified' as const } : {}),
+      ...(unplaced ? { unplaced } : {}), ...(unknown.length ? { unknown } : {}) }
+    cleared = false; unverified = false; unplaced = 0
+    const context = boundedContext({ repository: { cwd, summary: HISTORICAL_SUMMARY }, observations: [], ...(memory.previousTask ? { previousTask: memory.previousTask } : {}) })
+    turn.sample = { id: hash([source, session, ts, request]), source, session, timestamp: ts, cwd, input: inputOf(memory, excerpt(request, 8000), context),
+      discovery: [], judgeEvidence: '', outcome: { requests: 0, errors: 0, effort, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, provenance }
+    calls.clear()
+  }
+  function finish() {
+    const t = turn
+    turn = undefined
+    // The live router remembers only turns that reached the model.
+    if (!t || t.requests.size === 0) return
+    // The engine reports the assistant's final visible text of the turn.
+    const answer = t.lastMessage ? t.texts.get(t.lastMessage) ?? '' : ''
+    if (t.notification) { memory = afterNotification(memory, answer); return }
+    const s = t.sample!
+    s.judgeEvidence = excerpt(s.judgeEvidence + '\nFinal response:\n' + t.text, 18000)
+    if (t.delivered.length) s.provenance = { ...s.provenance, delivered: t.delivered.length }
+    out.push(s)
+    // The classifier's relation answer is not in the transcript; only the deterministic rule is known.
+    const continuation = continuationOf(undefined, t.request)
+    relationUnknown = t.continued !== undefined && !continuation
+    memory = afterTask(memory, { request: taskMemoryOf(t.request, t.delivered), answer, continuation, continued: t.continued, observations: t.observed,
+      turn: { toolErrors: s.outcome.errors, requests: s.outcome.requests, interrupted: t.interrupted } })
   }
   function result(id: string, text: string, failed: boolean) {
-    const call = calls.get(id)
-    if (!active || !call) return
+    const call = calls.get(id), active = turn?.sample
+    if (!turn || !active || !call) return
     if (failed) active.outcome.errors++
+    // Task memory keeps what the live router observed during the whole turn.
+    const observation = observationOf(call.tool, call.input, text, failed)
+    if (observation) turn.observed = addObservation(turn.observed, observation)
     if (sensitiveSource(JSON.stringify(call.input).replace(/["']/g, ' ')) || (call.tool !== 'Read' && sensitiveOutput(text))) return
     // Shell output is available to the independent judge, but the live router
     // accepts only Read/Grep/Glob. Replay observes that same restriction.
     active.judgeEvidence += `\n${call.tool} ${excerpt(JSON.stringify(call.input), 600)}\n${excerpt(text, 2200)}`
     active.judgeEvidence = excerpt(active.judgeEvidence, 16000)
-    const observation = observationOf(call.tool, call.input, text, failed)
-    if (observation && !stoppedDiscovery) active.discovery = addObservation(active.discovery, observation)
+    if (observation && !turn.stoppedDiscovery) active.discovery = addObservation(active.discovery, observation)
   }
   for (const row of rows) {
     const p = row.payload ?? {}
     cwd = row.cwd ?? (['session_meta', 'turn_context'].includes(row.type) ? p.cwd : undefined) ?? cwd
+    // Claude records moves of the session root (worktrees, `/cd`); a row's cwd follows the shell. Codex keeps one cwd.
+    if (source === 'codex' || !sessionRoot) sessionRoot = cwd
+    if (row.type === 'relocated' && typeof row.relocatedCwd === 'string') sessionRoot = row.relocatedCwd
     if (row.type === 'turn_context') effort = p.effort
     if (source === 'claude') {
       if (row.isSidechain) continue
       const blocks = row.message?.content
       if (row.type === 'user') {
         if (typeof blocks === 'string' || (Array.isArray(blocks) && blocks.every(b => b.type === 'text'))) {
-          if (!row.isMeta && !row.isCompactSummary && row.entrypoint === 'cli') user(content(blocks), row.timestamp)
+          const text = content(blocks)
+          if (/^\s*\[Request interrupted by user/.test(text)) { if (turn) turn.interrupted = true }
+          else if (/<command-name>\/clear<\/command-name>/.test(text)) { finish(); entered = []; memory = EMPTY_MEMORY; relationUnknown = false; cleared = true }
+          else if (row.origin?.kind === 'task-notification' || (!row.origin?.kind && isTaskNotification(text))) enter(text, row.timestamp, 'task-notification')
+          else if (!row.isMeta && !row.isCompactSummary && entrypoints.includes(row.entrypoint) && isHuman(text)) enter(text, row.timestamp, row.origin?.kind ?? 'composer')
         } else if (Array.isArray(blocks)) {
           for (const b of blocks) if (b.type === 'tool_result') result(b.tool_use_id, content(b.content), b.is_error === true)
         }
       }
-      if (row.type === 'assistant' && active) {
-        if (Array.isArray(blocks)) for (const b of blocks) {
-          if (b.type === 'text') answer += b.text + '\n'
-          if (b.type === 'tool_use') {
-            calls.set(b.id, { tool: b.name, input: b.input ?? {} })
-            if (!['Read', 'Grep', 'Glob'].includes(b.name)) stoppedDiscovery = true
+      // A prompt absorbed by the running turn, which has started even before its first answer; it never starts a turn of its own.
+      if (row.type === 'attachment' && row.attachment?.type === 'queued_command' && typeof row.attachment.prompt === 'string') {
+        await begin()
+        turn?.delivered.push({ text: row.attachment.prompt, origin: row.attachment.origin?.kind ?? 'composer' })
+      }
+      if (row.type === 'assistant') {
+        await begin()
+        if (turn && Array.isArray(blocks)) {
+          const id = row.message?.id ?? row.requestId
+          if (id) turn.lastMessage = id
+          for (const b of blocks) {
+            if (b.type === 'text') { turn.text += b.text + '\n'; if (id) turn.texts.set(id, `${turn.texts.get(id) ?? ''}${turn.texts.has(id) ? '\n' : ''}${b.text}`) }
+            if (b.type === 'tool_use') {
+              calls.set(b.id, { tool: b.name, input: b.input ?? {} })
+              if (!['Read', 'Grep', 'Glob'].includes(b.name)) turn.stoppedDiscovery = true
+            }
           }
-        }
-        const id = row.message?.id ?? row.requestId
-        if (id && !requestIds.has(id)) {
-          requestIds.add(id); active.outcome.requests++
-          const u = row.message.usage ?? {}
-          active.outcome.input += u.input_tokens ?? 0; active.outcome.output += u.output_tokens ?? 0
-          active.outcome.cacheRead += u.cache_read_input_tokens ?? 0; active.outcome.cacheWrite += u.cache_creation_input_tokens ?? 0
-          active.outcome.effort = row.effort ?? active.outcome.effort
+          if (id && !turn.requests.has(id)) {
+            turn.requests.add(id)
+            const active = turn.sample
+            if (active) {
+              active.outcome.requests++
+              const u = row.message.usage ?? {}
+              active.outcome.input += u.input_tokens ?? 0; active.outcome.output += u.output_tokens ?? 0
+              active.outcome.cacheRead += u.cache_read_input_tokens ?? 0; active.outcome.cacheWrite += u.cache_creation_input_tokens ?? 0
+              active.outcome.effort = row.effort ?? active.outcome.effort
+            }
+          }
         }
       }
     } else {
+      if (row.type === 'event_msg' && p.type === 'task_started') {
+        if (entered.length > 0) drop()
+        codexTurn = typeof p.turn_id === 'string' ? p.turn_id : undefined
+      }
+      if (row.type === 'turn_context' && typeof p.turn_id === 'string') codexTurn ??= p.turn_id
+      if (row.type === 'event_msg' && (p.type === 'task_complete' || p.type === 'turn_aborted')) {
+        // An aborted turn that answered was interrupted; one that did not leaves no task and no memory.
+        if (p.type === 'turn_aborted' && turn) turn.interrupted = true
+        if (!turn) entered = []
+        codexTurn = undefined
+      }
       if (row.type === 'response_item' && p.type === 'message') {
-        if (p.role === 'user') user(content(p.content), row.timestamp)
-        else if (p.role === 'assistant' && active && p.channel !== 'analysis') answer += content(p.content) + '\n'
+        if (p.role === 'user') {
+          const text = content(p.content)
+          if (CODEX_NOTIFICATION.test(text)) enterCodex(text, row.timestamp, 'task-notification')
+          else if (isHuman(text) && !CODEX_HOST.test(text)) enterCodex(text, row.timestamp, 'composer')
+        }
+        else if (p.role === 'assistant' && p.channel !== 'analysis') {
+          await begin()
+          if (turn) { const id = `message:${row.timestamp}`; turn.text += content(p.content) + '\n'; turn.texts.set(id, content(p.content)); turn.lastMessage = id }
+        }
       }
       if (row.type === 'response_item' && ['function_call', 'custom_tool_call'].includes(p.type)) {
+        await begin()
         let input: Row = {}
         try { input = JSON.parse(p.arguments ?? '{}') } catch { input = { arguments: p.arguments } }
         if (p.input) input = { code: excerpt(p.input, 1800) }
         calls.set(p.call_id, { tool: p.name, input })
-        if (/apply_patch|write_file/.test(p.name ?? '')) stoppedDiscovery = true
+        if (turn && /apply_patch|write_file/.test(p.name ?? '')) turn.stoppedDiscovery = true
       }
       if (row.type === 'response_item' && ['function_call_output', 'custom_tool_call_output'].includes(p.type)) result(p.call_id, content(p.output), false)
-      if (row.type === 'token_usage_record' && active) {
-        const u = p.usage ?? {}
-        active.outcome.requests++; active.outcome.input += u.input_tokens ?? 0; active.outcome.output += u.output_tokens ?? 0
-        active.outcome.cacheRead += u.cached_input_tokens ?? u.input_tokens_details?.cached_tokens ?? 0
+      if (row.type === 'token_usage_record') {
+        await begin()
+        if (turn) turn.requests.add(`usage:${turn.requests.size}`)
+        if (turn?.sample) {
+          const u = p.usage ?? {}, active = turn.sample
+          active.outcome.requests++; active.outcome.input += u.input_tokens ?? 0; active.outcome.output += u.output_tokens ?? 0
+          active.outcome.cacheRead += u.cached_input_tokens ?? u.input_tokens_details?.cached_tokens ?? 0
+        }
       }
     }
+    const active = turn?.sample
     if (active && row.timestamp && active.timestamp) active.outcome.durationMs = Date.parse(row.timestamp) - Date.parse(active.timestamp)
   }
   finish()
-  return out.filter(s => s.outcome.requests > 0 && s.judgeEvidence.length > 100)
+  return out
 }
 
-function sample() {
+async function sample() {
   const perSource = Number(option('n', '60')) / 2
   const excluded = new Set<string>()
   const old = join(homedir(), '.local/state/effort-router/eval/sample.jsonl')
@@ -153,7 +291,7 @@ function sample() {
     const paths = files(join(homedir(), source === 'claude' ? '.claude/projects' : '.codex/sessions'))
       .filter(p => !p.includes('/subagents/') && statSync(p).size < 32 * 1024 * 1024 && statSync(p).mtimeMs < Date.now() - 600000)
       .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs).slice(0, 200)
-    const candidates = paths.flatMap(path => extract(path, source)).filter(s => !excluded.has(s.session))
+    const candidates = (await Promise.all(paths.map(path => extract(path, source)))).flat().filter(s => s.judgeEvidence.length > 100 && !excluded.has(s.session))
       .sort((a, b) => hash([seed, a.id]).localeCompare(hash([seed, b.id])))
     const sessions = new Set<string>(), prompts = new Set<string>()
     for (const s of candidates) {
@@ -164,7 +302,7 @@ function sample() {
     inventory[source] = { files: paths.length, candidateTurns: candidates.length, sampledSessions: sessions.size }
   }
   save('samples.jsonl', all)
-  writeFileSync(join(root, 'manifest.json'), JSON.stringify({ created: new Date().toISOString(), seed, inventory, excludedLegacySessions: excluded.size, fingerprint: hash(all), n: all.length }, null, 2))
+  writeFileSync(join(root, 'manifest.json'), JSON.stringify({ created: new Date().toISOString(), seed, inventory, excludedLegacySessions: excluded.size, fingerprint: hash(all), n: all.length, routingVersion: routingVersion() }, null, 2))
   console.log(JSON.stringify({ n: all.length, inventory, fingerprint: hash(all) }))
 }
 
@@ -177,26 +315,26 @@ function prepareLabels() {
   console.log(JSON.stringify({ requests: requests.length, bytes: Buffer.byteLength(JSON.stringify(requests)), fingerprint: hash(requests), endpoint: gateway + '/v1/chat/completions', model: judge }))
 }
 
-function importLabels() {
+async function importLabels() {
   const legacy = option('legacy-data', join(homedir(), '.local/state/effort-router/eval'))
   const original = lines(join(legacy, 'sample.jsonl'))
   const labelPaths = [join(legacy, 'proposals.jsonl'), ...readdirSync(legacy).filter(n => n.startsWith('oc-')).map(n => join(legacy, n, 'labels.jsonl'))].filter(existsSync)
   const sets = labelPaths.map(path => new Map(lines(path).map(row => [row.id, row.level])))
   const paths = new Map(files(join(homedir(), '.claude/projects')).filter(p => !p.includes('/subagents/')).map(path => [path.split('/').pop()!.replace('.jsonl', ''), path]))
-  const cache = new Map<string, Sample[]>()
+  const cache = new Map<string, Promise<Sample[]>>()
   const samples: Sample[] = [], labels: Row[] = []
   for (const old of original) {
     const path = paths.get(old.session)
     if (!path) continue
     if (!cache.has(old.session)) cache.set(old.session, extract(path, 'claude'))
-    const matched = cache.get(old.session)!.find(s => s.timestamp === old.ts)
+    const matched = (await cache.get(old.session)!).find(s => s.timestamp === old.ts)
     const votes = sets.map(set => set.get(old.id)).filter((level): level is Level => isLevel(level) && level !== 'max').sort((a, b) => rankOf(a) - rankOf(b))
     if (!matched || votes.length < 2) continue
     samples.push({ ...matched, id: old.id })
     labels.push({ id: old.id, level: votes[Math.floor(votes.length / 2)], scorable: true, votes, judge: 'existing independent prompt-only consensus', reason: 'Existing labels, frozen before this change; original labelers did not inspect repository evidence.' })
   }
   save('samples.jsonl', samples); save('labels.jsonl', labels)
-  writeFileSync(join(root, 'manifest.json'), JSON.stringify({ created: new Date().toISOString(), n: samples.length, original: original.length, labelFiles: labelPaths.map(p => p.slice(legacy.length + 1)), fingerprint: hash(samples), labelType: 'existing prompt-only consensus; regression comparison, not contextual ground truth' }, null, 2))
+  writeFileSync(join(root, 'manifest.json'), JSON.stringify({ created: new Date().toISOString(), n: samples.length, original: original.length, labelFiles: labelPaths.map(p => p.slice(legacy.length + 1)), fingerprint: hash(samples), routingVersion: routingVersion(), labelType: 'existing prompt-only consensus; regression comparison, not contextual ground truth' }, null, 2))
   console.log(JSON.stringify({ restored: samples.length, original: original.length, labelers: sets.length }))
 }
 
@@ -206,7 +344,8 @@ async function key(): Promise<string> {
   if (!value) throw Error('Gateway key missing')
   return value
 }
-async function post(path: string, body: unknown, timeoutMs: number): Promise<{ body: Row; ms: number }> {
+/** Posts to the gateway with the key from `--key-file`; the key is never printed. */
+export async function post(path: string, body: unknown, timeoutMs: number): Promise<{ body: Row; ms: number }> {
   const start = Date.now()
   const response = await fetch(gateway + path, { method: 'POST', headers: { Authorization: `Bearer ${await key()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) })
@@ -268,7 +407,8 @@ async function score() {
     await Promise.all(jobs.slice(i, i + 3).map(async ({ s, variant }) => {
       const input = variant === 'discovery' ? { ...s.input, context: boundedContext({ ...s.input.context!, observations: s.discovery }) } : s.input
       try {
-        const bodies = inputVariants(input).map(i => JSON.stringify(variant === 'legacy' ? legacyRequest(i) : requestOf(i, classifier)))
+        const variants = inputVariants(input)
+        const bodies = variants.map(i => JSON.stringify(variant === 'legacy' ? legacyRequest(i) : requestOf(i, classifier)))
         const distinct = [...new Set(bodies)]
         const responses = await Promise.all(distinct.map(body => post('/svpg/decide/v1/systemone', JSON.parse(body), 5000)))
         const answers = bodies.map(body => {
@@ -278,9 +418,9 @@ async function score() {
           return parsed && variant === 'legacy' ? { ...parsed, probabilities: response.answers.effort.probabilities } : parsed
         })
         if (answers.some(a => !a)) throw Error('Invalid classifier response')
-        const answer = averageAnswers(answers as Answer[])
+        const answer = averageAnswers(answers as Answer[], answers[contextVariantIndex(variants)])
         const decision = variant === 'legacy' ? { level: pickOf(answer.probabilities, 0.95, 'low', 'xhigh') } : routeOf(answer, input, baseline, 0.95, 'low', 'xhigh')
-        append('scores.jsonl', { id: s.id, variant, fingerprint, baseline, ...decision, answer, latencyMs: Math.max(...responses.map(r => r.ms)),
+        append('scores.jsonl', { id: s.id, variant, fingerprint, baseline, ...decision, answer, variantAnswers: answers, latencyMs: Math.max(...responses.map(r => r.ms)),
           usage: { input_tokens: responses.reduce((n, r) => n + (r.body.usage?.input_tokens ?? 0), 0), output_tokens: responses.reduce((n, r) => n + (r.body.usage?.output_tokens ?? 0), 0) },
           calls: distinct.length, servedModel: responses[0]!.body.model })
       } catch (error) { append('scores.jsonl', { id: s.id, variant, fingerprint, baseline, level: baseline, failed: String(error) }) }

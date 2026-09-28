@@ -1,5 +1,5 @@
 import { describe, expect, test, tier } from 'claude-code/testing'
-import { addObservation, boundedContext, excerpt, isSelfContainedReply, observationOf, redact, sensitiveOutput, type Observation } from '../hooks/context'
+import { addObservation, boundedContext, excerpt, projectOf, isSelfContainedReply, isTaskNotification, observationOf, redact, sensitiveOutput, type Observation } from '../hooks/context'
 import { routeOf } from '../hooks/policy'
 import { answerOf, type Answer, type ClassifyInput } from '../hooks/classify'
 
@@ -10,6 +10,19 @@ const low: Answer = { choice: 'low', probabilities: { low: 1 }, confidence: 1,
 const route = (input: ClassifyInput, answer = low) => routeOf(answer, input, 'high', 0.95, 'low', 'xhigh')
 
 describe('task evidence', () => {
+  test('background envelopes are recognized without treating quoted notifications as background', () => {
+    expect(isTaskNotification('<task-notification><summary>Done</summary></task-notification>\nRead the output file.')).toBe(true)
+    expect(isTaskNotification('Explain this <task-notification>done</task-notification>')).toBe(false)
+    expect(isTaskNotification('<task-notification>broken')).toBe(false)
+  })
+  test('needs-context describes an effort hold, not every incomplete assessment', () => {
+    const missing = { ...low, context: 'missing_evidence' as const, contextSufficient: false }
+    expect(route({ request: 'Explain the design' }, missing)).toMatchObject({ level: 'high', contextHeld: true, reason: 'insufficient context' })
+    expect(route({ request: 'Explain the design' }, { ...missing, probabilities: { xhigh: 1 } }))
+      .toMatchObject({ level: 'xhigh', contextSufficient: false, contextHeld: false, reason: 'classifier' })
+    expect(route({ request: 'Continue', context: { observations: [], previousTask: { request: 'Design', level: 'xhigh', observations: [] } } }, missing))
+      .toMatchObject({ level: 'xhigh', contextSufficient: false, contextHeld: false, reason: 'continue task' })
+  })
   test('common credential sources and prefixed credentials are excluded', () => {
     for (const path of ['.env.production.local', '.envrc', '.npmrc', '.netrc', '.git-credentials', 'id_ed25519', 'id_rsa', '.kube/config', '.docker/config.json']) {
       expect(observationOf('Read', { file_path: `/work/${path}` }, 'opaque value')).toBeUndefined()
@@ -115,5 +128,50 @@ describe('task evidence', () => {
     expect(addObservation([observation], observation)).toHaveLength(1)
     expect(boundedContext({ observations: Array(10).fill(observation) }).observations).toHaveLength(4)
     expect(excerpt('api_key=sk-12345678901234567890', 100)).not.toContain('1234567890')
+  })
+  test('project identity follows Git common-directory metadata captured from real git 2.54 layouts, through symbolic links', async () => {
+    // Captured from real repositories (git 2.54.0, Apple Git-157). A missing value is a directory; `links` are symbolic links.
+    const files: Record<string, string> = {
+      '/L/main/.claude/worktrees/wt/.git': 'gitdir: /L/main/.git/worktrees/wt\n', '/L/main/.git/worktrees/wt/commondir': '../..\n',
+      '/L/main-sibling/.git': 'gitdir: /L/main/.git/worktrees/main-sibling\n', '/L/main/.git/worktrees/main-sibling/commondir': '../..\n',
+      '/L/main-relative/.git': 'gitdir: ../main/.git/worktrees/main-relative\n', '/L/main/.git/worktrees/main-relative/commondir': '../..\n',
+      '/L/sep/.git': 'gitdir: /L/sep.git\n', '/L/sep-wt/.git': 'gitdir: /L/sep.git/worktrees/sep-wt\n', '/L/sep.git/worktrees/sep-wt/commondir': '../..\n',
+      '/L/bare-wt/.git': 'gitdir: /L/bare.git/worktrees/bare-wt\n', '/L/bare.git/worktrees/bare-wt/commondir': '../..\n',
+      '/L/main/mods/other/.git': 'gitdir: ../../.git/modules/mods/other\n', '/L/stale/.git': 'gitdir: /L/main/.git/worktrees/stale\n',
+    }
+    const dirs = ['/L/main/.git', '/L/main/src/app', '/L/sep.git', '/L/bare.git', '/L/other/.git', '/L/main/.git/modules/mods/other', '/L/cw-tree', '/L/plain/deep', '/L/dotgitlink']
+    const links: Record<string, string> = { '/L/mainlink': '/L/main', '/L/srclink': '/L/main/src', '/L/alias': '/L', '/L/dotgitlink/.git': '/L/main/.git' }
+    const realOf = (path: string): string => {
+      for (const [link, target] of Object.entries(links)) if (path === link || path.startsWith(`${link}/`)) return realOf(target + path.slice(link.length))
+      return path
+    }
+    const isDir = (path: string) => [...dirs, ...Object.keys(files)].some(known => known === path ? dirs.includes(path) : known.startsWith(`${path}/`))
+    const directoryReads: string[] = []
+    const fs = {
+      exists: async (p: string) => realOf(p) in files || isDir(realOf(p)),
+      stat: async (p: string) => {
+        const real = realOf(p)
+        if (!(real in files) && !isDir(real)) throw Error(`ENOENT: ${p}`)
+        return { kind: real in files ? 'file' as const : 'dir' as const, realPath: real }
+      },
+      read: async (p: string) => {
+        if (isDir(realOf(p))) { directoryReads.push(p); throw Error(`EISDIR: ${p}`) }
+        const text = files[realOf(p)]
+        if (text === undefined) throw Error(`ENOENT: ${p}`)
+        return text
+      },
+    }
+    const expected: [string, string][] = [
+      ['main', '/L/main/.git'], ['main/src/app', '/L/main/.git'], ['main/.claude/worktrees/wt', '/L/main/.git'], ['main-sibling', '/L/main/.git'],
+      ['main-relative', '/L/main/.git'], ['sep', '/L/sep.git'], ['sep-wt', '/L/sep.git'], ['bare-wt', '/L/bare.git'], ['other', '/L/other/.git'],
+      ['main/mods/other', '/L/main/.git/modules/mods/other'],
+      // A symbolic link reaches the same project as the path it leads to.
+      ['mainlink', '/L/main/.git'], ['srclink/app', '/L/main/.git'], ['alias/main-sibling', '/L/main/.git'], ['dotgitlink', '/L/main/.git'],
+      // Outside the supported contract: `core.worktree` metadata elsewhere is not read, and a gone target keeps its spelling.
+      ['cw-tree', '/L/cw-tree'], ['stale', '/L/main/.git/worktrees/stale'], ['plain/deep', '/L/plain/deep'],
+    ]
+    for (const [root, identity] of expected) expect([root, await projectOf(`/L/${root}`, fs)]).toEqual([root, identity])
+    // The engine logs every rejected read as an error: a `.git` directory must never be read.
+    expect(directoryReads).toEqual([])
   })
 })

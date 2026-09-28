@@ -1,6 +1,6 @@
 import type { Host } from './host'
 import { CHOICES, type Choice, type Probabilities } from './policy'
-import { boundedContext, excerpt, isSelfContainedReply, redact, type TaskContext } from './context'
+import { boundedContext, excerpt, isSelfContainedReply, type TaskContext } from './context'
 
 /**
  * The current request, relevant conversation history, and bounded task evidence.
@@ -25,6 +25,12 @@ export type ClassifyInput = {
 export function inputVariants(input: ClassifyInput, ensemble = true): ClassifyInput[] {
   const { earlier, previousTurn, ...base } = input
   return ensemble ? [base, { ...base, earlier }, { ...base, previousTurn }] : [base]
+}
+
+/** Context and continuity use the most conversation history, independently of effort votes. */
+export function contextVariantIndex(inputs: readonly ClassifyInput[]): number {
+  return inputs.reduce((best, input, index) =>
+    (input.earlier?.length ?? 0) > (inputs[best]?.earlier?.length ?? 0) ? index : best, 0)
 }
 
 export type Answer = {
@@ -120,17 +126,17 @@ export function requestOf(input: ClassifyInput, model: string): object {
   }
 
   if (input.previousRequest) {
-    state.previous_request = redact(input.previousRequest).slice(0, PREVIOUS_CHARS)
+    state.previous_request = excerpt(input.previousRequest, PREVIOUS_CHARS)
   }
 
   if (input.previousAnswer) {
-    state.previous_answer_head = redact(input.previousAnswer).slice(0, PREVIOUS_CHARS)
+    state.previous_answer = excerpt(input.previousAnswer, PREVIOUS_CHARS)
   }
 
   if (input.earlier?.length) {
     state.earlier_exchanges = input.earlier.map(exchange => ({
-      request: redact(exchange.request).slice(0, EARLIER_CHARS),
-      ...(exchange.answer ? { answer_head: redact(exchange.answer).slice(0, EARLIER_CHARS) } : {}),
+      request: excerpt(exchange.request, EARLIER_CHARS),
+      ...(exchange.answer ? { answer: excerpt(exchange.answer, EARLIER_CHARS) } : {}),
     }))
   }
 
@@ -315,7 +321,7 @@ export async function classify(
 /**
  * Asks once per distinct request body and averages the answers over every
  * input, so inputs that come out identical count as often as they are given.
- * Fails only when no input got an answer; the latency is the slowest call's.
+ * The context variant must answer; the latency is the slowest call's.
  */
 export async function classifyAll(
   host: Host,
@@ -336,10 +342,15 @@ export async function classifyAll(
     return { failure: (bySlot[0] as Unclassified).failure, latencyMs }
   }
 
-  return { ...averageAnswers(answered), latencyMs }
+  const contextAnswer = bySlot[contextVariantIndex(inputs)]
+  if (!contextAnswer || !isClassified(contextAnswer)) {
+    return { failure: `context assessment: ${contextAnswer?.failure ?? 'no answer'}`, latencyMs }
+  }
+  return { ...averageAnswers(answered, contextAnswer), latencyMs }
 }
 
-export function averageAnswers(answered: readonly Answer[]): Answer {
+/** A failed context variant cannot borrow permission to lower effort from another vote. */
+export function averageAnswers(answered: readonly Answer[], contextAnswer: Answer | undefined): Answer {
   if (!answered.length) throw new Error('No classifier answers')
   const probabilities: Partial<Record<Choice, number>> = {}
   const workProbabilities: Partial<Record<Choice, number>> | undefined = answered.every(a => a.workProbabilities) ? {} : undefined
@@ -358,9 +369,9 @@ export function averageAnswers(answered: readonly Answer[]): Answer {
     probabilities,
     workProbabilities,
     confidence: answered.reduce((sum, answer) => sum + answer.confidence, 0) / answered.length,
-    context: answered.find(answer => !answer.contextSufficient)?.context ?? answered[0]!.context,
-    contextSufficient: answered.every(answer => answer.contextSufficient),
-    relation: answered.every(answer => answer.relation === answered[0]!.relation) ? answered[0]!.relation : 'unknown',
+    context: contextAnswer?.context ?? 'missing_evidence',
+    contextSufficient: contextAnswer?.contextSufficient ?? false,
+    relation: contextAnswer?.relation ?? 'unknown',
   }
 }
 
@@ -400,6 +411,11 @@ export class Breaker {
     }
 
     return true
+  }
+
+  /** How much longer the pause lasts, without starting the retry. */
+  pausedForMs(now: number): number {
+    return this.openedAt === undefined ? 0 : Math.max(0, this.openedAt + this.coolMs - now)
   }
 
   record(isOk: boolean, now: number): void {

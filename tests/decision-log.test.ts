@@ -19,6 +19,15 @@ describe('decision-log', () => {
     expect(log.firstOf('baseline'), 'the first turn outlives the move').toBe('xhigh')
   })
 
+  test('rotation counts UTF-8 bytes, including non-ASCII prompts', async () => {
+    const files = new Map<string, string>()
+    const log = new DecisionLog('/logs/s.writer.jsonl', async (path, text) => void files.set(path, text), '', 42)
+    await log.append({ text: '漢字漢字' })
+    await log.append({ text: '漢字漢字' })
+    expect([...files.keys()]).toEqual(['/logs/s.writer.jsonl', '/logs/s.writer.1.jsonl'])
+    expect([...files.values()].every(text => new TextEncoder().encode(text).byteLength <= 42)).toBe(true)
+  })
+
   test('a reopened log keeps its lines and knows its first turn', async () => {
     const files = new Map<string, string>()
     const earlier = `${JSON.stringify({ type: 'label', turnId: 't0' })}\n${JSON.stringify({ type: 'turn', turnId: 't1', baseline: 'high' })}\n`

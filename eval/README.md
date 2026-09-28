@@ -1,6 +1,6 @@
 # Context routing evaluation
 
-Read [the live Claude results](results/2026-09-27-claude-e2e.md) for final-product e2e verification and the fixes it required. The [earlier context results](results/2026-09-27-context-routing.md) record the initial historical replay.
+Read [the September 28 implementation results](results/2026-09-28-implementation.md) for context continuity, outage recovery, lifecycle verification, and the paired historical comparison. [The earlier live Claude results](results/2026-09-27-claude-e2e.md) record the first end-to-end verification. The [earlier context results](results/2026-09-27-context-routing.md) record the initial historical replay.
 
 Run these commands with an installed Bun. They need no Claude generation and install no dependencies.
 
@@ -43,3 +43,35 @@ Reports include below-reference, equal and above-reference effort, abstentions, 
 The report also applies an xhigh baseline to the same classifier answers. Baseline effort is a local policy input, so this comparison needs no new inference. An xhigh session retains xhigh when context is insufficient; a high session can retain high. Use the row that matches the intended session setting. The snapshot comparison does not reconstruct a previous turn's routed effort, so inherited effort floors are checked by the hook and paired-case tests.
 
 `cache` compares adjacent requests at the same model in the historical Claude logs. It reports cache reads after effort changes and the fraction of the preceding input prefix reused. Elapsed time and other prompt changes are uncontrolled, so this is evidence about those observed paths, not a general cache guarantee.
+
+## How replay rebuilds conversation memory
+
+Replay builds each task's classifier input with the live router's own functions. `hooks/memory.ts` holds the previous exchanges, the latest background reply, and the previous task. `hooks/batch.ts` decides what a turn's request is when several prompts enter it. The transcript supplies these facts:
+
+- A background completion's final reply becomes the next task's `previousAnswer`. The original task stays the previous request and the previous task.
+- An answer is the final visible text of the turn: the text of its last assistant message. Text written before a tool call is judge evidence only.
+- Typed rows that the transcript shows delivered together, with the same timestamp and no answer between them, form one task. A prompt that reached no model before the next one entered is neither a task nor memory. The live router remembers only turns that sent a model request.
+- A prompt absorbed by a running turn (a `queued_command` attachment) joins that task's memory, not its classified request.
+- `/clear` starts empty memory. A `relocated` row moves the session root, and today's Git layout decides whether the project changed. A shell `cd` never changes it.
+- The previous task's observations cover the whole turn, including reads after an edit. The discovery arm still stops at the first action.
+- Codex marks each turn: `task_started` opens it, and `task_complete` or `turn_aborted` closes it. Prompts in one open turn form one task, so a skill command stays with its `<skill>` expansion. A task's timestamp is its last prompt's. Codex's `<recommended_plugins>` and `<turn_aborted>` user messages are host text and never a request. A `<subagent_notification>` is a background completion. An aborted turn that reached no model leaves no task and no memory. Replay records an aborted turn that answered as interrupted.
+
+Each sample has a `provenance` record of what replay cannot know. `unknown` lists the previous task's level. It also lists whether the previous turn continued an earlier task, when the deterministic continuation rule does not decide that. The live router took both from classifier answers. `project: 'unverified'` marks a root move to a directory that no longer exists. Replay keeps memory across such a move. `batch`, `delivered` and `cleared` record the delivery facts above. `unplaced` counts Codex prompts that reached no model in a log without turn boundaries. Replay never joins such prompts to the next one and leaves them out.
+
+The transcript records no reliable marker for an in-process `/resume` or a new-process `--resume`, so replay keeps the preceding task memory. The live router restores bounded memory from checkpoints when the saved histories agree. Native lifecycle tests check that behavior, including ambiguous branches; historical replay cannot reproduce it. Replay also has no historical repository description, and its discovery arm omits the continuation that the live decision established.
+
+`routingVersion` hashes every file under `hooks/`, so a change to `register.ts` or a new module changes every score fingerprint. `extract` admits interactive (`cli`) rows by default. Pass `{ entrypoints: ['sdk-cli'] }` for headless transcripts.
+
+## Paired comparison of two trees
+
+`compare.ts` compares the classifier inputs of two whole trees on the frozen labeled samples. Each arm uses its own extraction, request builder and routing policy. The tool only reads the frozen samples and labels.
+
+```sh
+bun eval/compare.ts prepare --before /path/to/baseline --out ~/.local/state/effort-router/compare-run
+bun eval/compare.ts score --out ~/.local/state/effort-router/compare-run --reps 3
+bun eval/compare.ts report --out ~/.local/state/effort-router/compare-run
+```
+
+`prepare` extracts each sample with both trees and hashes their request bodies. It sends nothing. Samples with identical bodies need no calls, since their difference is zero. `score` calls the classifier only for changed samples and interleaves both arms in one window, because identical bodies get different answers in different time windows. `--after` defaults to this tree. `--datasets 47=DIR,67=DIR` overrides the two frozen sets. After an integration, run `prepare --since <earlier out>`. Then `score` calls only samples whose bodies changed since that run. `score` refuses to run if either tree changed after `prepare`.
+
+`report` gives the paired change in the sufficient-context probability with a bootstrap interval, levels at high and xhigh baselines, and counts below, equal to and above the frozen labels. The labels are earlier model judgments. Agreement with them is not a task-success result. Inputs, bodies and answers stay in `--out` with mode 600.

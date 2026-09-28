@@ -100,7 +100,7 @@ export function raisedBy(level: Level, steps: number, ceiling: Level): Level {
 
 /** Shared by replay and live routing; confidence cannot replace absent evidence. */
 export function routeOf(answer: Answer, input: ClassifyInput, baseline: Level, threshold: number, floor: Level, ceiling: Level): {
-  level: Level; workLevel?: Level; evidenceFloor?: Level; reason: string; contextSufficient: boolean; missing: string[]; continuation: boolean
+  level: Level; workLevel?: Level; evidenceFloor?: Level; reason: string; contextSufficient: boolean; contextHeld: boolean; missing: string[]; continuation: boolean
 } {
   const continuation = input.continuesTask === true || isContinuation(input.request) || answer.relation === 'continuation'
   const previous = continuation ? input.context?.previousTask : undefined
@@ -125,9 +125,10 @@ export function routeOf(answer: Answer, input: ClassifyInput, baseline: Level, t
     ? clamp('high', floor, ceiling) : undefined
   const evidenceRaised = evidenceFloor !== undefined && rankOf(evidenceFloor) > rankOf(level)
   if (evidenceFloor) level = higherOf(level, evidenceFloor)
-  // Missing context prevents a downgrade, but must not suppress a justified raise.
-  if (!contextSufficient) level = higherOf(level, baseline)
   if (continuation && isLevel(previous?.level)) level = higherOf(level, clamp(previous.level, 'low', ceiling))
-  return { level, workLevel, evidenceFloor, contextSufficient, missing: [...new Set(missing)], continuation,
-    reason: !contextSufficient ? 'insufficient context' : continuation && isLevel(previous?.level) && level === previous.level ? 'continue task' : cue ? 'cue' : evidenceRaised ? 'concurrency evidence' : workRaised ? 'task complexity' : 'classifier' }
+  // Report the guard only when missing context actually prevents a downgrade.
+  const contextHeld = !contextSufficient && rankOf(baseline) > rankOf(level)
+  if (contextHeld) level = baseline
+  return { level, workLevel, evidenceFloor, contextSufficient, contextHeld, missing: [...new Set(missing)], continuation,
+    reason: contextHeld ? 'insufficient context' : continuation && isLevel(previous?.level) && level === previous.level ? 'continue task' : cue ? 'cue' : evidenceRaised ? 'concurrency evidence' : workRaised ? 'task complexity' : 'classifier' }
 }

@@ -1,0 +1,855 @@
+{
+  "date": "2026-09-28",
+  "implementation": "uncommitted changes after 9177419",
+  "unitTests": {
+    "pass": 96,
+    "fail": 0
+  },
+  "datasets": [
+    {
+      "name": "context-eval",
+      "n": 47,
+      "labeled": 47,
+      "fingerprint": "21938f4513499dd9",
+      "routingVersion": "6dbfe37957dbb86f",
+      "prior": {
+        "all/context": {
+          "n": 47,
+          "under": 1,
+          "exact": 11,
+          "over": 35,
+          "belowXhigh": 21,
+          "abstentions": 33,
+          "failures": 0,
+          "p50Ms": 313,
+          "p95Ms": 418,
+          "classifierInputTokens": 80301
+        },
+        "all/context-at-xhigh": {
+          "n": 47,
+          "under": 0,
+          "exact": 10,
+          "over": 37,
+          "belowXhigh": 12,
+          "abstentions": 33,
+          "failures": 0,
+          "p50Ms": 313,
+          "p95Ms": 418,
+          "classifierInputTokens": 80301
+        },
+        "all/discovery": {
+          "n": 5,
+          "under": 0,
+          "exact": 2,
+          "over": 3,
+          "belowXhigh": 0,
+          "abstentions": 4,
+          "failures": 0,
+          "p50Ms": 350,
+          "p95Ms": 448,
+          "classifierInputTokens": 13493
+        }
+      },
+      "current": {
+        "all/context": {
+          "n": 47,
+          "under": 1,
+          "exact": 14,
+          "over": 32,
+          "belowXhigh": 25,
+          "abstentions": 30,
+          "failures": 0,
+          "p50Ms": 308,
+          "p95Ms": 418,
+          "classifierInputTokens": 79492
+        },
+        "all/context-at-xhigh": {
+          "n": 47,
+          "under": 0,
+          "exact": 11,
+          "over": 36,
+          "belowXhigh": 16,
+          "abstentions": 30,
+          "failures": 0,
+          "p50Ms": 308,
+          "p95Ms": 418,
+          "classifierInputTokens": 79492
+        },
+        "all/discovery": {
+          "n": 5,
+          "under": 0,
+          "exact": 2,
+          "over": 3,
+          "belowXhigh": 0,
+          "abstentions": 3,
+          "failures": 0,
+          "p50Ms": 355,
+          "p95Ms": 472,
+          "classifierInputTokens": 13493
+        }
+      },
+      "ablations": [
+        {
+          "baseline": "high",
+          "beforeIncomplete": 30,
+          "afterIncomplete": 30,
+          "beforeHeld": 2,
+          "afterHeld": 2,
+          "changedLevels": 0
+        },
+        {
+          "baseline": "xhigh",
+          "beforeIncomplete": 30,
+          "afterIncomplete": 30,
+          "beforeHeld": 9,
+          "afterHeld": 9,
+          "changedLevels": 0
+        }
+      ]
+    },
+    {
+      "name": "context-regression",
+      "n": 67,
+      "labeled": 67,
+      "fingerprint": "ff07a5b3d29aff9c",
+      "routingVersion": "6dbfe37957dbb86f",
+      "prior": {
+        "all/context": {
+          "n": 67,
+          "under": 2,
+          "exact": 37,
+          "over": 28,
+          "belowXhigh": 32,
+          "abstentions": 49,
+          "failures": 0,
+          "p50Ms": 460,
+          "p95Ms": 584,
+          "classifierInputTokens": 236067
+        },
+        "all/context-at-xhigh": {
+          "n": 67,
+          "under": 1,
+          "exact": 31,
+          "over": 35,
+          "belowXhigh": 14,
+          "abstentions": 49,
+          "failures": 0,
+          "p50Ms": 460,
+          "p95Ms": 584,
+          "classifierInputTokens": 236067
+        },
+        "all/discovery": {
+          "n": 6,
+          "under": 1,
+          "exact": 4,
+          "over": 1,
+          "belowXhigh": 2,
+          "abstentions": 5,
+          "failures": 0,
+          "p50Ms": 454,
+          "p95Ms": 558,
+          "classifierInputTokens": 23919
+        }
+      },
+      "current": {
+        "all/context": {
+          "n": 67,
+          "under": 2,
+          "exact": 37,
+          "over": 28,
+          "belowXhigh": 30,
+          "abstentions": 34,
+          "failures": 0,
+          "p50Ms": 447,
+          "p95Ms": 551,
+          "classifierInputTokens": 235821
+        },
+        "all/context-at-xhigh": {
+          "n": 67,
+          "under": 1,
+          "exact": 35,
+          "over": 31,
+          "belowXhigh": 22,
+          "abstentions": 34,
+          "failures": 0,
+          "p50Ms": 447,
+          "p95Ms": 551,
+          "classifierInputTokens": 235821
+        },
+        "all/discovery": {
+          "n": 6,
+          "under": 1,
+          "exact": 4,
+          "over": 1,
+          "belowXhigh": 2,
+          "abstentions": 3,
+          "failures": 0,
+          "p50Ms": 428,
+          "p95Ms": 505,
+          "classifierInputTokens": 23953
+        }
+      },
+      "ablations": [
+        {
+          "baseline": "high",
+          "beforeIncomplete": 45,
+          "afterIncomplete": 34,
+          "beforeHeld": 0,
+          "afterHeld": 0,
+          "changedLevels": 0
+        },
+        {
+          "baseline": "xhigh",
+          "beforeIncomplete": 45,
+          "afterIncomplete": 34,
+          "beforeHeld": 13,
+          "afterHeld": 8,
+          "changedLevels": 5
+        }
+      ]
+    }
+  ],
+  "pairs": [
+    {
+      "id": "toy-explain",
+      "pass": true,
+      "level": "medium",
+      "contextSufficient": true,
+      "contextHeld": false
+    },
+    {
+      "id": "kernel-explain",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": true,
+      "contextHeld": false
+    },
+    {
+      "id": "kernel-brief-explain",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": true,
+      "contextHeld": false
+    },
+    {
+      "id": "toy-unknown",
+      "pass": true,
+      "level": "high",
+      "contextSufficient": false,
+      "contextHeld": true
+    },
+    {
+      "id": "kernel-unknown",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": false,
+      "contextHeld": false
+    },
+    {
+      "id": "kernel-typo",
+      "pass": true,
+      "level": "low",
+      "contextSufficient": true,
+      "contextHeld": false
+    },
+    {
+      "id": "toy-typo",
+      "pass": true,
+      "level": "low",
+      "contextSufficient": true,
+      "contextHeld": false
+    },
+    {
+      "id": "continue-hard",
+      "pass": false,
+      "level": "xhigh",
+      "contextSufficient": false,
+      "contextHeld": false
+    },
+    {
+      "id": "new-easy-after-hard",
+      "pass": true,
+      "level": "low",
+      "contextSufficient": true,
+      "contextHeld": false
+    },
+    {
+      "id": "continue-missing",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": false,
+      "contextHeld": false
+    },
+    {
+      "id": "self-contained",
+      "pass": true,
+      "level": "low",
+      "contextSufficient": true,
+      "contextHeld": false
+    },
+    {
+      "id": "tiny-hard",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": false,
+      "contextHeld": false
+    },
+    {
+      "id": "untrusted-comment",
+      "pass": true,
+      "level": "xhigh",
+      "contextSufficient": false,
+      "contextHeld": false
+    }
+  ],
+  "railway": [
+    {
+      "target": "i logged you in",
+      "arm": "previous-memory",
+      "selected": 1,
+      "contexts": [
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.88,
+            "missing_target": 0.06,
+            "missing_scope": 0.02,
+            "missing_evidence": 0.04
+          },
+          "confidence": 0.84,
+          "latencyMs": 388
+        },
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.8,
+            "missing_target": 0.16,
+            "missing_scope": 0.02,
+            "missing_evidence": 0.03
+          },
+          "confidence": 0.73,
+          "latencyMs": 379
+        },
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.89,
+            "missing_target": 0.08,
+            "missing_scope": 0.01,
+            "missing_evidence": 0.02
+          },
+          "confidence": 0.85,
+          "latencyMs": 381
+        }
+      ],
+      "oldVoteRoute": {
+        "level": "medium",
+        "workLevel": "medium",
+        "contextSufficient": true,
+        "contextHeld": false,
+        "missing": [],
+        "continuation": false,
+        "reason": "classifier"
+      },
+      "route": {
+        "level": "medium",
+        "workLevel": "medium",
+        "contextSufficient": true,
+        "contextHeld": false,
+        "missing": [],
+        "continuation": false,
+        "reason": "classifier"
+      }
+    },
+    {
+      "target": "i logged you in",
+      "arm": "preserved-user-memory",
+      "selected": 1,
+      "contexts": [
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.95,
+            "missing_target": 0.03,
+            "missing_scope": 0.02,
+            "missing_evidence": 0.01
+          },
+          "confidence": 0.94,
+          "latencyMs": 334
+        },
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.84,
+            "missing_target": 0.1,
+            "missing_scope": 0.04,
+            "missing_evidence": 0.02
+          },
+          "confidence": 0.78,
+          "latencyMs": 334
+        },
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.9,
+            "missing_target": 0.08,
+            "missing_scope": 0.01,
+            "missing_evidence": 0.01
+          },
+          "confidence": 0.86,
+          "latencyMs": 330
+        }
+      ],
+      "oldVoteRoute": {
+        "level": "high",
+        "workLevel": "high",
+        "contextSufficient": true,
+        "contextHeld": false,
+        "missing": [],
+        "continuation": false,
+        "reason": "task complexity"
+      },
+      "route": {
+        "level": "high",
+        "workLevel": "high",
+        "contextSufficient": true,
+        "contextHeld": false,
+        "missing": [],
+        "continuation": false,
+        "reason": "task complexity"
+      }
+    },
+    {
+      "target": "logged in again",
+      "arm": "previous-memory",
+      "selected": 1,
+      "contexts": [
+        {
+          "type": "choice",
+          "choice": "missing_target",
+          "probabilities": {
+            "sufficient": 0.23,
+            "missing_target": 0.57,
+            "missing_scope": 0.02,
+            "missing_evidence": 0.18
+          },
+          "confidence": 0.43,
+          "latencyMs": 334
+        },
+        {
+          "type": "choice",
+          "choice": "missing_target",
+          "probabilities": {
+            "sufficient": 0.15,
+            "missing_target": 0.79,
+            "missing_scope": 0.01,
+            "missing_evidence": 0.05
+          },
+          "confidence": 0.72,
+          "latencyMs": 572
+        },
+        {
+          "type": "choice",
+          "choice": "missing_target",
+          "probabilities": {
+            "sufficient": 0.14,
+            "missing_target": 0.77,
+            "missing_scope": 0.02,
+            "missing_evidence": 0.08
+          },
+          "confidence": 0.7,
+          "latencyMs": 595
+        }
+      ],
+      "oldVoteRoute": {
+        "level": "xhigh",
+        "workLevel": "medium",
+        "contextSufficient": false,
+        "contextHeld": false,
+        "missing": [
+          "missing_target"
+        ],
+        "continuation": false,
+        "reason": "classifier"
+      },
+      "route": {
+        "level": "xhigh",
+        "workLevel": "medium",
+        "contextSufficient": false,
+        "contextHeld": false,
+        "missing": [
+          "missing_target"
+        ],
+        "continuation": false,
+        "reason": "classifier"
+      }
+    },
+    {
+      "target": "logged in again",
+      "arm": "preserved-user-memory",
+      "selected": 1,
+      "contexts": [
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.77,
+            "missing_target": 0.14,
+            "missing_scope": 0.02,
+            "missing_evidence": 0.08
+          },
+          "confidence": 0.7,
+          "latencyMs": 283
+        },
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.9,
+            "missing_target": 0.07,
+            "missing_scope": 0.01,
+            "missing_evidence": 0.02
+          },
+          "confidence": 0.87,
+          "latencyMs": 286
+        },
+        {
+          "type": "choice",
+          "choice": "missing_target",
+          "probabilities": {
+            "sufficient": 0.26,
+            "missing_target": 0.67,
+            "missing_scope": 0.02,
+            "missing_evidence": 0.05
+          },
+          "confidence": 0.57,
+          "latencyMs": 286
+        }
+      ],
+      "oldVoteRoute": {
+        "level": "xhigh",
+        "workLevel": "high",
+        "contextSufficient": false,
+        "contextHeld": true,
+        "missing": [
+          "uncertain_context"
+        ],
+        "continuation": false,
+        "reason": "insufficient context"
+      },
+      "route": {
+        "level": "xhigh",
+        "workLevel": "high",
+        "contextSufficient": true,
+        "contextHeld": false,
+        "missing": [],
+        "continuation": true,
+        "reason": "continue task"
+      }
+    },
+    {
+      "target": "what else is missing or all migrations done?",
+      "arm": "previous-memory",
+      "selected": 1,
+      "contexts": [
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.91,
+            "missing_target": 0.05,
+            "missing_scope": 0.01,
+            "missing_evidence": 0.03
+          },
+          "confidence": 0.89,
+          "latencyMs": 331
+        },
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.89,
+            "missing_target": 0.04,
+            "missing_scope": 0.02,
+            "missing_evidence": 0.05
+          },
+          "confidence": 0.85,
+          "latencyMs": 331
+        },
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.65,
+            "missing_target": 0.17,
+            "missing_scope": 0.02,
+            "missing_evidence": 0.17
+          },
+          "confidence": 0.53,
+          "latencyMs": 331
+        }
+      ],
+      "oldVoteRoute": {
+        "level": "xhigh",
+        "workLevel": "high",
+        "contextSufficient": false,
+        "contextHeld": true,
+        "missing": [
+          "uncertain_context"
+        ],
+        "continuation": false,
+        "reason": "insufficient context"
+      },
+      "route": {
+        "level": "high",
+        "workLevel": "high",
+        "contextSufficient": true,
+        "contextHeld": false,
+        "missing": [],
+        "continuation": false,
+        "reason": "classifier"
+      }
+    },
+    {
+      "target": "what else is missing or all migrations done?",
+      "arm": "preserved-user-memory",
+      "selected": 1,
+      "contexts": [
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.87,
+            "missing_target": 0.08,
+            "missing_scope": 0.01,
+            "missing_evidence": 0.05
+          },
+          "confidence": 0.82,
+          "latencyMs": 265
+        },
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.93,
+            "missing_target": 0.05,
+            "missing_scope": 0.01,
+            "missing_evidence": 0.01
+          },
+          "confidence": 0.91,
+          "latencyMs": 265
+        },
+        {
+          "type": "choice",
+          "choice": "sufficient",
+          "probabilities": {
+            "sufficient": 0.6,
+            "missing_target": 0.18,
+            "missing_scope": 0.02,
+            "missing_evidence": 0.2
+          },
+          "confidence": 0.46,
+          "latencyMs": 265
+        }
+      ],
+      "oldVoteRoute": {
+        "level": "xhigh",
+        "workLevel": "high",
+        "contextSufficient": false,
+        "contextHeld": true,
+        "missing": [
+          "uncertain_context"
+        ],
+        "continuation": false,
+        "reason": "insufficient context"
+      },
+      "route": {
+        "level": "high",
+        "workLevel": "high",
+        "contextSufficient": true,
+        "contextHeld": false,
+        "missing": [],
+        "continuation": false,
+        "reason": "classifier"
+      }
+    }
+  ],
+  "e2e": {
+    "model": "claude-opus-5-5",
+    "root": "/var/folders/dk/x6w25f3j79q7j6_qbvwywz640000gn/T/effort-router-e2e-1790548841515",
+    "skipped": [],
+    "results": [
+      {
+        "name": "context-refresh",
+        "failures": [],
+        "seconds": 8
+      },
+      {
+        "name": "real-notification-continuity",
+        "failures": [],
+        "seconds": 28
+      },
+      {
+        "name": "real-discovery-toy",
+        "failures": [],
+        "seconds": 6
+      },
+      {
+        "name": "real-discovery-kernel",
+        "failures": [],
+        "seconds": 20
+      },
+      {
+        "name": "real-unresolved",
+        "failures": [],
+        "seconds": 5
+      },
+      {
+        "name": "real-uncommented-atomics",
+        "failures": [],
+        "seconds": 14
+      },
+      {
+        "name": "real-alarming-comment",
+        "failures": [],
+        "seconds": 7
+      },
+      {
+        "name": "real-untrusted-evidence",
+        "failures": [],
+        "seconds": 8
+      },
+      {
+        "name": "credential-evidence",
+        "failures": [],
+        "seconds": 5
+      }
+    ]
+  },
+  "limitations": [
+    "Historical labels are model judgments, not counterfactual task-success measurements.",
+    "Historical corpus inputs are frozen; their earlier answers still contain the old head-only excerpts. This comparison does not measure new task-memory collection.",
+    "Previous vs current corpus reports use separate classifier runs; ablations use identical current answers.",
+    "Railway inputs are reconstructed from task logs and transcripts. Each arm was run once; prior task effort is historical, not sequentially simulated.",
+    "Raw shell/MCP output and image attachments remain outside classifier evidence.",
+    "Production plugin and running sessions were not changed.",
+    "The original synthetic notification E2E was replaced by a stamped SDK-user envelope check; actual background-origin preservation is covered in plugin tests.",
+    "Final source includes later review and partial-failure handling fixes. Corpus replay had no classifier failures; it was not rerun after those live-state changes.",
+    "The full E2E suite is not green: low-low-xhigh-low cache reuse fails in both the candidate and unchanged v0.3.0. Fixed-low control passes."
+  ],
+  "replayChecks": {
+    "pass": 6,
+    "fail": 0
+  },
+  "finalSourceSha256": {
+    "hooks/classify.ts": "a9ecbeb512678edb3278bb2bb2de570a92f3267a21aa083aa59ffa390e8f6ca3",
+    "hooks/context.ts": "bbb64086321dbeac42ea343af298dccfa194a7de4c10746d927cc798f494280d",
+    "hooks/decision-log.ts": "35bc1158a6f1fafcfcb2f3d01a718ffbc8385d17a2b1587f764c96031a258f83",
+    "hooks/host.ts": "29940b200095bdc34a0b744120b94ae0368f6217f1493082e449d929dba4442c",
+    "hooks/policy.ts": "2fc61044798b28b16a07ec0485189389e1d7f0ea6d28d7a3a82932223da623c7",
+    "hooks/register.ts": "a09f8f7aacee0b7404000e8b83c4d4e6d3eac67d18d4dc4089be31c5c750053e"
+  },
+  "e2eReviewFixes": {
+    "model": "claude-opus-5-5",
+    "root": "/var/folders/dk/x6w25f3j79q7j6_qbvwywz640000gn/T/effort-router-e2e-1790549790125",
+    "skipped": [],
+    "results": [
+      {
+        "name": "context-refresh",
+        "failures": [],
+        "seconds": 7
+      },
+      {
+        "name": "real-notification-lookalike",
+        "failures": [],
+        "seconds": 39
+      },
+      {
+        "name": "real-discovery-toy",
+        "failures": [],
+        "seconds": 6
+      }
+    ]
+  },
+  "cacheChecks": {
+    "partialOutage": {
+      "model": "claude-opus-5-5",
+      "root": "/var/folders/dk/x6w25f3j79q7j6_qbvwywz640000gn/T/effort-router-e2e-1790549377136",
+      "skipped": [],
+      "results": [
+        {
+          "name": "context-partial-outage",
+          "failures": [
+            "request 3 read 3101 of a 8213-token prefix from cache",
+            "request 4 read 3101 of a 8272-token prefix from cache"
+          ],
+          "seconds": 7
+        }
+      ]
+    },
+    "fixedEffortControlAndRepeat": {
+      "model": "claude-opus-5-5",
+      "root": "/var/folders/dk/x6w25f3j79q7j6_qbvwywz640000gn/T/effort-router-e2e-1790549501066",
+      "skipped": [],
+      "results": [
+        {
+          "name": "context-cache-control",
+          "failures": [],
+          "seconds": 8
+        },
+        {
+          "name": "context-partial-outage",
+          "failures": [
+            "request 3 read 3101 of a 8210-token prefix from cache",
+            "request 4 read 3101 of a 8266-token prefix from cache"
+          ],
+          "seconds": 8
+        }
+      ]
+    },
+    "candidateWithoutOutage": {
+      "model": "claude-opus-5-5",
+      "root": "/var/folders/dk/x6w25f3j79q7j6_qbvwywz640000gn/T/effort-router-e2e-1790549877661",
+      "skipped": [],
+      "results": [
+        {
+          "name": "context-effort-transition",
+          "failures": [
+            "request 3 read 3101 of a 8210-token prefix from cache",
+            "request 4 read 3101 of a 8269-token prefix from cache"
+          ],
+          "seconds": 8
+        }
+      ]
+    },
+    "v030WithoutOutage": {
+      "model": "claude-opus-5-5",
+      "root": "/var/folders/dk/x6w25f3j79q7j6_qbvwywz640000gn/T/effort-router-e2e-1790549885234",
+      "skipped": [],
+      "results": [
+        {
+          "name": "context-effort-transition",
+          "failures": [
+            "request 3 read 3101 of a 8212-token prefix from cache",
+            "request 4 read 3101 of a 8270-token prefix from cache"
+          ],
+          "seconds": 8
+        }
+      ]
+    }
+  },
+  "review": {
+    "reviewer": "Claude Code independent headless review",
+    "initial": "Blocking discovery-state finding plus notification-origin and UI findings",
+    "fixes": "Implemented and verified with 96 plugin tests and focused live E2E passes",
+    "rereview": "Equal-level boundary identified and fixed; final focused review confirmed the blocking regression resolved with no counterexample in the fix",
+    "method": "Static independent review; tests run by implementing agent",
+    "cacheGate": "Known pre-existing failures remain; not reviewed as fixed"
+  }
+}

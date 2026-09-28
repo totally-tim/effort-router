@@ -4,6 +4,8 @@
  */
 export const MAX_LOG_BYTES = 3 * 1024 * 1024
 
+const byteLength = (text: string): number => new TextEncoder().encode(text).byteLength
+
 /**
  * One session's JSONL decision log. `$.fs.write` replaces a whole file, so
  * the log keeps its lines and writes them all each time, one write at a time.
@@ -28,21 +30,8 @@ export class DecisionLog {
     private readonly maxBytes = MAX_LOG_BYTES,
   ) {
     this.lines = existing.split('\n').filter(line => line.trim() !== '')
-    this.bytes = this.lines.reduce((sum, line) => sum + line.length + 1, 0)
-
-    for (const line of this.lines) {
-      try {
-        const parsed = JSON.parse(line) as Record<string, unknown>
-
-        if (parsed.type === 'turn') {
-          this.first = parsed
-
-          break
-        }
-      } catch {
-        // A line another writer tore; skip it.
-      }
-    }
+    this.bytes = this.lines.reduce((sum, line) => sum + byteLength(line) + 1, 0)
+    this.first = firstTurnOf(this.lines)
   }
 
   /**
@@ -60,7 +49,7 @@ export class DecisionLog {
       this.first = record as Record<string, unknown>
     }
 
-    if (this.lines.length > 0 && this.bytes + line.length + 1 > this.maxBytes) {
+    if (this.lines.length > 0 && this.bytes + byteLength(line) + 1 > this.maxBytes) {
       this.part += 1
       this.path = this.path.replace(/(\.\d+)?\.jsonl$/, `.${this.part}.jsonl`)
       this.lines = []
@@ -68,7 +57,7 @@ export class DecisionLog {
     }
 
     this.lines.push(line)
-    this.bytes += line.length + 1
+    this.bytes += byteLength(line) + 1
 
     const text = this.lines.join('\n') + '\n'
     const path = this.path
@@ -79,4 +68,21 @@ export class DecisionLog {
 
     return this.pending
   }
+}
+
+/** The first turn record of a log's lines: what a later instance recovers of the session. */
+export function firstTurnOf(lines: readonly string[]): Record<string, unknown> | undefined {
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line) as Record<string, unknown>
+
+      if (parsed.type === 'turn') {
+        return parsed
+      }
+    } catch {
+      // A line another writer tore; skip it.
+    }
+  }
+
+  return undefined
 }

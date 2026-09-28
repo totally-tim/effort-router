@@ -19,12 +19,14 @@ jobs:
         with:
           node-version: 22
       # Pinned, because the Mods API is early access and can change between
-      # releases. 2.1.281 is the newest release that was 48 hours old when
-      # this workflow was written (an install-age rule); the mod is developed
-      # and end-to-end tested on 2.1.283, its floor in the README. Move the
-      # pin up once 2.1.283 is 48 hours old.
-      - run: npm install --global --no-audit --no-fund @anthropic-ai/claude-code@2.1.281
-      # Validation also writes the type declarations the typecheck reads.
+      # releases. 2.1.283 is the floor in the README and the release the mod
+      # is developed and end-to-end tested on. npm published it on
+      # 2026-09-25T18:46Z, more than 48 hours before this pin (an install-age rule).
+      - run: npm install --global --no-audit --no-fund @anthropic-ai/claude-code@2.1.283
+      # `.` validates the marketplace manifest; the plugin manifest path
+      # validates the plugin and traces its hooks. Neither writes the type
+      # declarations: they are committed under .claude-plugin/types.
       - run: claude plugin validate .
+      - run: claude plugin validate .claude-plugin/plugin.json
       - run: npx --yes -p typescript@7.0.2 tsc --noEmit -p .
       - run: claude plugin test .

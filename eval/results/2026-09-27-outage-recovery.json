@@ -1,0 +1,118 @@
+{
+  "session": "73445284-49cd-4fd7-81cb-cef904ea69e3",
+  "runtime": "installed v0.3.0 hooks matched tested checkout",
+  "turns": [
+    {
+      "ts": "2026-09-27T17:46:52.789Z",
+      "reason": "fallback: timeout",
+      "latency_ms": 5003,
+      "sent": "xhigh",
+      "context_sufficient": null
+    },
+    {
+      "ts": "2026-09-27T17:46:59.346Z",
+      "reason": "fallback: timeout",
+      "latency_ms": 5003,
+      "sent": "xhigh",
+      "context_sufficient": null
+    },
+    {
+      "ts": "2026-09-27T17:47:05.969Z",
+      "reason": "fallback: timeout",
+      "latency_ms": 5003,
+      "sent": "xhigh",
+      "context_sufficient": null
+    },
+    {
+      "ts": "2026-09-27T17:47:07.743Z",
+      "reason": "fallback: classifier paused",
+      "latency_ms": null,
+      "sent": "xhigh",
+      "context_sufficient": null
+    },
+    {
+      "ts": "2026-09-27T17:52:10.677Z",
+      "reason": "classifier",
+      "latency_ms": 252,
+      "sent": "low",
+      "context_sufficient": true
+    },
+    {
+      "ts": "2026-09-27T17:52:12.351Z",
+      "reason": "classifier",
+      "latency_ms": 140,
+      "sent": "low",
+      "context_sufficient": true
+    }
+  ],
+  "transcript_steps": [
+    {
+      "effort": "xhigh",
+      "cache_read": 1441,
+      "cache_write": 6699,
+      "input": 2
+    },
+    {
+      "effort": "xhigh",
+      "cache_read": 8140,
+      "cache_write": 41,
+      "input": 2
+    },
+    {
+      "effort": "xhigh",
+      "cache_read": 8181,
+      "cache_write": 41,
+      "input": 2
+    },
+    {
+      "effort": "xhigh",
+      "cache_read": 8222,
+      "cache_write": 41,
+      "input": 2
+    },
+    {
+      "effort": "low",
+      "cache_read": 3102,
+      "cache_write": 5198,
+      "input": 2
+    },
+    {
+      "effort": "low",
+      "cache_read": 8300,
+      "cache_write": 41,
+      "input": 2
+    }
+  ],
+  "recovery_assertions": "passed",
+  "adjacent_recovered_cache_assertion": "passed",
+  "original_e2e_result": {
+    "model": "claude-opus-5-5",
+    "root": "/var/folders/dk/x6w25f3j79q7j6_qbvwywz640000gn/T/effort-router-e2e-1790531205295",
+    "skipped": [],
+    "results": [
+      {
+        "name": "real-outage-recovery",
+        "failures": [
+          "request 5 read 3102 of a 8265-token prefix from cache"
+        ],
+        "seconds": 328
+      }
+    ]
+  },
+  "note": "The original run failed only the cache-retention assertion across the 301-second pause. The narrowed assertion was checked against this saved transcript; the full run was not repeated.",
+  "production_cache_observation": {
+    "source": "User-reported Claude /context dashboard",
+    "session_id": null,
+    "requests": 394,
+    "input_tokens_from_cache_percent": 99,
+    "misses": 3,
+    "last_miss_ago": "48m 39s",
+    "recached_tokens_display": "914.1k",
+    "reported_ttl": "1h",
+    "cache_state": "warm",
+    "last_activity_ago": "2m 29s",
+    "dashboard_likely_cause": "idle past the 1h TTL",
+    "cause_independently_verified": false,
+    "effort_changes_identified": false
+  }
+}

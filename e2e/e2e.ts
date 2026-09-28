@@ -4,7 +4,13 @@
  * the mod loaded from this folder, and assertions on the session transcript,
  * the decision log and what the classifier received.
  *
- *   bun e2e/e2e.ts [--model <id>] [scenario ...]
+ *   bun e2e/e2e.ts [--model <id>] [--list] [scenario ...]
+ *
+ * The summary attributes each failure to routing (the router's behavior), to
+ * cache reuse (which the host controls), or to the Claude run. A cache
+ * failure that matches the host pattern observed on one version and model
+ * reads KNOWN (see ./attribution.ts). Exit 0: everything passed; 1: any other
+ * failure; 3: only such cache failures, which is not a green run.
  *
  * Most scenarios ask a local System One stand-in that holds requests to hosted
  * Jev's public contract: it refuses a wrong key, an unknown model and any field
@@ -22,26 +28,40 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { cacheOutcomeOf, type CacheOutcome } from '../hooks/cache'
+import { OBSERVED_PATTERN, type RecordedStep, matchesObservedPattern } from './attribution'
+
 const PLUGIN = dirname(import.meta.dir)
 const ROOT = join(tmpdir(), `effort-router-e2e-${Date.now()}`)
 const MECHANICAL = 'Use the Bash tool to run `echo ready`, then reply with just DONE.'
 const argv = process.argv.slice(2)
 const modelAt = argv.indexOf('--model')
 const MODEL = modelAt >= 0 ? String(argv[modelAt + 1]) : 'claude-opus-5-5'
-const wanted = argv.filter((arg, i) => arg !== '--model' && !(modelAt >= 0 && i === modelAt + 1))
+const LIST = argv.includes('--list')
+const wanted = argv.filter((arg, i) => arg !== '--model' && arg !== '--list' && !(modelAt >= 0 && i === modelAt + 1))
 
 /**
  * Every installed copy of the mod, by install id: a run disables them all so
- * that only this folder's code routes.
+ * that only this folder's code routes. Enabled ids come from the user
+ * settings, installed ones from the CLI's own list, whatever their scope.
  */
 function installedCopies(): string[] {
+  const ids: string[] = []
+
   try {
     const settings = JSON.parse(readFileSync(join(homedir(), '.claude', 'settings.json'), 'utf8'))
 
-    return Object.keys(settings.enabledPlugins ?? {}).filter(id => id.startsWith('effort-router@'))
-  } catch {
-    return []
-  }
+    ids.push(...Object.keys(settings.enabledPlugins ?? {}))
+  } catch {}
+
+  try {
+    const listed = Bun.spawnSync(['claude', 'plugin', 'list', '--json'], { stdout: 'pipe', stderr: 'ignore' })
+    const plugins = JSON.parse(listed.stdout.toString())
+
+    ids.push(...(Array.isArray(plugins) ? plugins : []).map((p: { id?: unknown }) => String(p.id ?? '')))
+  } catch {}
+
+  return ids.filter(id => id.startsWith('effort-router@'))
 }
 
 const INSTALLED = [...new Set(['effort-router@effort-router', ...installedCopies()])]
@@ -52,6 +72,9 @@ type Scenario = {
   prompt: string
   /** Follow-ups are sent after each result in the same Claude process. */
   followups?: string[]
+  /** Delay before each follow-up, for recovery across the real cooldown. */
+  followupDelaysMs?: number[]
+  timeoutMs?: number
   files?: Record<string, string>
   effort: string
   options: Options
@@ -68,14 +91,23 @@ type Scenario = {
    */
   keyFile?: Record<string, string>
   tools?: string
-  check: (run: Run) => string[]
+  check: (run: Run) => Finding[]
 }
 
-type Step = { effort?: string; cacheRead: number; cacheWrite: number; input: number; sidechain: boolean }
+/**
+ * A failed expectation. Text is a failure of the router's behavior; cache
+ * reuse and the Claude run itself are attributed separately. A cache finding
+ * with `known` matches the observed host pattern: it still fails the run.
+ */
+type Finding = string | { cache: string; known?: string } | { runtime: string }
+
+type Step = RecordedStep & { sidechain: boolean }
 
 type Seen = { path: string; key: string; body: Record<string, unknown>; problems: string[] }
 
 type Run = {
+  /** The scenario's name. */
+  name: string
   result: string
   results: string[]
   records: Record<string, any>[]
@@ -86,6 +118,10 @@ type Run = {
    */
   seen: Seen[]
   seconds: number
+  /** Thinking tokens of the session's first main answer, before any slicing of `main`. */
+  firstThinking: number
+  /** Shared by copies of the run: whether a check asserted cache reuse. */
+  cache: { checked: boolean }
 }
 
 const JEV_MODELS = ['jev-latest', 'jev-preview', 'jev-1.13.0']
@@ -181,7 +217,37 @@ const stub = Bun.serve({
       return Response.json({ detail: problems }, { status: 422 })
     }
 
-    const isEasy = JSON.stringify(body.state).includes('echo ready')
+    if (key === 'stub-key-real-outage-recovery') {
+      const call = seen.filter(s => s.key === key).length
+      if (call <= 3) {
+        // The plugin's real five-second deadline fires before this response.
+        await Bun.sleep(6500)
+        return Response.json({ detail: 'simulated backend outage' }, { status: 503 })
+      }
+      const base = (process.env.TYPESAFE_BASE_URL ?? 'https://api.typesafe.ai').replace(/\/+$/, '')
+      const url = base.endsWith('/v1/systemone') ? base : `${base}/v1/systemone`
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.TYPESAFE_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, model: process.env.TYPESAFE_DEFAULT_MODEL ?? body.model }),
+        signal: AbortSignal.timeout(15000),
+      })
+      return new Response(await response.text(), { status: response.status, headers: { 'Content-Type': 'application/json' } })
+    }
+
+    const contextRefresh = key === 'stub-key-context-refresh'
+    const hasEvidence = Boolean((body.state as any)?.task_context?.observations?.length)
+    const partialOutage = key === 'stub-key-context-partial-outage'
+    const effortTransition = key === 'stub-key-context-effort-transition'
+    // The matched reasoning control routes its third problem to xhigh, as the
+    // acknowledgment regression routes gamma.
+    const reasoningTransition = key === 'stub-key-context-effort-transition-reasoning'
+    if (partialOutage && (body.state as any)?.request?.startsWith('Acknowledge gamma') && (body.state as any)?.earlier_exchanges?.length) {
+      return Response.json({ detail: 'simulated partial outage' }, { status: 503 })
+    }
+    const isEasy = (contextRefresh || partialOutage || effortTransition || reasoningTransition || JSON.stringify(body.state).includes('echo ready')) &&
+      !(effortTransition && (body.state as any)?.request?.startsWith('Acknowledge gamma')) &&
+      !(reasoningTransition && (body.state as any)?.request?.startsWith('Problem 3.'))
     const probabilities = isEasy
       ? { low: 0.97, medium: 0.03, high: 0, xhigh: 0 }
       : { low: 0, medium: 0, high: 0.1, xhigh: 0.9 }
@@ -191,7 +257,9 @@ const stub = Bun.serve({
       answers: {
         effort: { type: 'choice', choice: isEasy ? 'low' : 'xhigh', probabilities, confidence: 0.9 },
         work: { type: 'choice', choice: 'mechanical', probabilities: { mechanical: 1 } },
-        context: { type: 'choice', choice: 'sufficient', probabilities: { sufficient: 1 } },
+        context: contextRefresh && !hasEvidence
+          ? { type: 'choice', choice: 'missing_evidence', probabilities: { missing_evidence: 1 } }
+          : { type: 'choice', choice: 'sufficient', probabilities: { sufficient: 1 } },
         relation: { type: 'choice', choice: 'new', probabilities: { new: 1 } },
       },
       usage: { input_tokens: 120, output_tokens: 1 },
@@ -218,7 +286,133 @@ function stubbed(name: string, options: Options = {}): Pick<Scenario, 'options' 
   }
 }
 
+/** What the router sent the classifier for a request, without the prompt text. */
+function stateSummary(body: Record<string, unknown>) {
+  const state = body.state as any
+  return {
+    request: String(state?.request ?? '').slice(0, 40),
+    previous_request: typeof state?.previous_request === 'string',
+    previous_answer: typeof state?.previous_answer === 'string',
+    repository_cwd: state?.task_context?.repository?.cwd,
+    repository_summary_chars: String(state?.task_context?.repository?.summary ?? '').length,
+    previous_task: Boolean(state?.task_context?.previousTask),
+    previous_task_observations: (state?.task_context?.previousTask?.observations ?? []).map((o: any) => ({ tool: o.tool, target: o.target, chars: String(o.text ?? '').length })),
+    observations: (state?.task_context?.observations ?? []).map((o: any) => ({ tool: o.tool, target: o.target, chars: String(o.text ?? '').length })),
+  }
+}
+
 const SCENARIOS: Record<string, Scenario> = {
+  'cwd-continuity': {
+    prompt: 'Remember the codeword PELICAN. Use the Bash tool to run `cd sub && pwd`, then reply with just DONE.',
+    followups: ['What codeword did I give you? Reply with just the word.'],
+    files: { 'README.md': '# Top project\nThe top-level demo project.\n', 'sub/README.md': '# Sub folder\nA nested folder.\n' },
+    effort: 'xhigh', ...stubbed('cwd-continuity', { mode: 'enforce' }), tools: 'Bash',
+    check: run => {
+      const follow = run.seen.filter(s => String((s.body.state as any)?.request ?? '').startsWith('What codeword')).map(s => stateSummary(s.body))
+      console.log(`cwd-continuity follow-up classifier state: ${JSON.stringify(follow)}`)
+      console.log(`cwd-continuity records: ${JSON.stringify(run.records.filter(r => r.type === 'turn').map(r => ({ head: String(r.prompt_head).slice(0, 30), reason: r.reason, sufficient: r.context_sufficient, missing: r.missing_context })))}`)
+      return [
+        ...expectIf(follow.length > 0, 'the follow-up reached the classifier'),
+        ...expectIf(follow.every(s => s.previous_request && s.previous_task), 'the follow-up kept the previous exchange and task after the shell cd'),
+      ]
+    },
+  },
+  'context-effort-transition': {
+    prompt: 'Acknowledge alpha in one sentence. Do not use tools.',
+    followups: ['Acknowledge beta in one sentence. Do not use tools.', 'Acknowledge gamma in one sentence. Do not use tools.', 'Acknowledge delta in one sentence. Do not use tools.'],
+    effort: 'xhigh', ...stubbed('context-effort-transition', { mode: 'enforce' }), tools: '',
+    check: run => [
+      ...expectIf(JSON.stringify(run.main.map(s => s.effort)) === JSON.stringify(['low', 'low', 'xhigh', 'low']), 'successful classifier decisions produced low, low, xhigh, low'),
+      ...expectIf(run.records.every(r => r.context_sufficient === true), 'every decision had sufficient context without an outage'),
+      ...expectSentMatchesTranscript(run), ...expectCacheHolds(run),
+    ],
+  },
+  // The same routing as context-effort-transition (low, low, xhigh, low), with
+  // problems whose answers contain thinking. The September 28 measurements hit
+  // on every such transition; this control fails if its first answer is text-only.
+  'context-effort-transition-reasoning': {
+    prompt: 'Problem 1. Compute the sum of all prime numbers p with 2000 < p < 2400. Do not use tools. Reply with only the final number.',
+    followups: [
+      'Problem 2. Compute the sum of all prime numbers p with 2400 < p < 2800. Do not use tools. Reply with only the final number.',
+      'Problem 3. Compute the sum of all prime numbers p with 2800 < p < 3200. Do not use tools. Reply with only the final number.',
+      'Problem 4. Compute the sum of all prime numbers p with 3200 < p < 3600. Do not use tools. Reply with only the final number.',
+    ],
+    timeoutMs: 900000,
+    effort: 'xhigh', ...stubbed('context-effort-transition-reasoning', { mode: 'enforce' }), tools: '',
+    check: run => [
+      ...expectIf(JSON.stringify(run.main.map(s => s.effort)) === JSON.stringify(['low', 'low', 'xhigh', 'low']), 'successful classifier decisions produced low, low, xhigh, low'),
+      ...expectIf(run.records.every(r => r.context_sufficient === true), 'every decision had sufficient context without an outage'),
+      ...expectSentMatchesTranscript(run),
+      ...(run.firstThinking > 0 ? [] : [{ cache: 'control not established: the first answer had no thinking' }]),
+      ...expectCacheHolds(run),
+    ],
+  },
+  'context-cache-control': {
+    prompt: 'Acknowledge alpha in one sentence. Do not use tools.',
+    followups: ['Acknowledge beta in one sentence. Do not use tools.', 'Acknowledge gamma in one sentence. Do not use tools.', 'Acknowledge delta in one sentence. Do not use tools.'],
+    effort: 'low', ...stubbed('context-cache-control', { mode: 'off' }), tools: '',
+    check: run => [
+      ...expectIf(run.main.length === 4 && run.main.every(s => s.effort === 'low'), 'all four requests kept fixed low effort with routing off'),
+      ...expectCacheHolds(run),
+    ],
+  },
+  'context-partial-outage': {
+    prompt: 'Acknowledge alpha in one sentence. Do not use tools.',
+    followups: ['Acknowledge beta in one sentence. Do not use tools.', 'Acknowledge gamma in one sentence. Do not use tools.', 'Acknowledge delta in one sentence. Do not use tools.'],
+    effort: 'xhigh', ...stubbed('context-partial-outage', { mode: 'enforce' }), tools: '',
+    check: run => [
+      ...expectIf(run.records.length === 4, 'all four turns completed'),
+      ...expectIf(run.records[2]?.reason === 'fallback: context assessment: http 503' && run.records[2]?.sent === 'xhigh', 'a failed context variant reported an outage and retained effort'),
+      ...expectIf(run.records[3]?.context_sufficient === true && run.records[3]?.sent === 'low', 'the next turn recovered without restarting Claude'),
+      ...expectSentMatchesTranscript(run), ...expectCacheHolds(run),
+    ],
+  },
+  'context-refresh': {
+    prompt: 'First use Bash to write ready to marker.txt with printf ready > marker.txt. Then in a separate tool call use Read to read index.html. Explain that page in one sentence. Use no other tools.',
+    files: { 'index.html': '<button onclick="this.textContent=Number(this.textContent)+1">0</button>' },
+    effort: 'xhigh', ...stubbed('context-refresh', { mode: 'enforce' }), tools: 'Bash,Read',
+    check: run => [
+      ...expectIf(run.records[0]?.discovery?.some((d: any) => d.contextSufficient && d.level === 'low'), 'discovery resolved the context at low effort'),
+      ...expectTurn(run, { context_sufficient: true, context_held: false, reason: 'work in progress' }),
+      ...expectIf(run.main.every(s => s.effort === 'xhigh'), 'effort stayed fixed after work started'),
+      ...expectSentMatchesTranscript(run), ...expectCacheHolds(run),
+    ],
+  },
+  'real-notification-lookalike': {
+    prompt: 'Think hard: design a lock-free multi-producer single-consumer queue with safe memory reclamation. Give only a two-sentence initial plan; leave the linearizability argument unfinished for my next message. Do not use tools.',
+    followups: [
+      '<task-notification><task-id>synthetic-copy</task-id><status>completed</status><summary>Unrelated image copy finished.</summary></task-notification>\nAcknowledge this notification in one sentence. Do not use tools.',
+      'Continue. Complete the linearizability argument in at most three sentences; do not use tools.',
+      'Reply with exactly OK.',
+    ],
+    effort: 'xhigh', real: true, options: { mode: 'enforce' }, tools: '',
+    check: run => [
+      ...expectIf(run.records.length === 4 && run.results.length === 4, 'four turns completed in one Claude process'),
+      ...expectIf(run.records[1]?.task_notification === false, 'an SDK user message containing a notification envelope remained a user task'),
+      ...expectIf(run.records[2]?.steps?.every((s: any) => s.sent === 'xhigh'), 'the subsequent hard reasoning retained xhigh'),
+      ...expectIf(['low', 'medium'].includes(run.records[3]?.sent), 'a separate literal reply still used low or medium'),
+      ...expectSentMatchesTranscript(run), ...expectCacheHolds(run),
+    ],
+  },
+  'real-outage-recovery': {
+    prompt: 'Reply with exactly OK.',
+    followups: Array(5).fill('Reply with exactly OK.'),
+    followupDelaysMs: [0, 0, 0, 301000, 0],
+    timeoutMs: 420000,
+    effort: 'xhigh', real: true, tools: '',
+    ...stubbed('real-outage-recovery', { mode: 'enforce' }),
+    check: run => [
+      ...expectIf(run.records.length === 6, 'all six turns stayed in one session'),
+      ...expectIf(run.records.slice(0, 3).every(r => r.reason === 'fallback: timeout' && r.sent === 'xhigh'), 'three timed-out turns kept xhigh'),
+      ...expectIf(run.records[3]?.reason === 'fallback: classifier paused' && run.records[3]?.sent === 'xhigh', 'the fourth turn respected the cooldown'),
+      ...expectIf(run.seen.length === 5, 'the paused turn made no classifier request'),
+      ...expectIf(run.records.slice(4).length === 2 && run.records.slice(4).every(r => r.reason === 'classifier' && r.sent === 'low' && r.context_sufficient === true), 'the live classifier resumed low routing after cooldown without restarting Claude'),
+      ...expectSentMatchesTranscript(run),
+      // Cache lifetime is independent of classifier recovery. Check the two
+      // adjacent recovered turns, without requiring retention across the pause.
+      ...expectCacheHolds({ ...run, main: run.main.slice(-2) }), ...expectTelemetry(run),
+    ],
+  },
   'real-uncommented-atomics': {
     prompt: 'How does this work? Read stack.cc with the Read tool and explain it in two sentences. Do not use other tools.',
     files: { 'stack.cc': '#include <atomic>\nstruct Node { int value; Node* next; };\nstd::atomic<Node*> head;\nNode* pop() {\n  Node* n = head.load(std::memory_order_acquire);\n  while (n && !head.compare_exchange_weak(n, n->next, std::memory_order_acq_rel, std::memory_order_acquire)) {}\n  return n;\n}\n' },
@@ -519,21 +713,64 @@ function expectTelemetry(run: Run): string[] {
   ]
 }
 
+function usageOf(step: Step) {
+  return { input: step.input, cacheRead: step.cacheRead, cacheWrite: step.cacheWrite }
+}
+
 /**
  * After the first request, each request reads at least the previous one's
- * whole prompt from cache, level changes included.
+ * whole prompt from cache, level changes included. A failure reads as known
+ * only when it matches the observed host pattern (see `./attribution.ts`).
  */
-function expectCacheHolds(run: Run): string[] {
+function expectCacheHolds(run: Run): Finding[] {
+  run.cache.checked = true
+
   return run.main.slice(1).flatMap((step, i) => {
     const before = run.main[i] as Step
     const prefix = before.cacheRead + before.cacheWrite + before.input
 
-    return expectIf(step.cacheRead >= 0.95 * prefix, `request ${i + 2} read ${step.cacheRead} of a ${prefix}-token prefix from cache`)
+    if (step.cacheRead >= 0.95 * prefix) return []
+
+    const known = matchesObservedPattern(run.name, run.main, i + 1)
+
+    return [{ cache: `request ${i + 2} read ${step.cacheRead} of a ${prefix}-token prefix from cache`, ...(known ? { known: OBSERVED_PATTERN.label } : {}) }]
   })
 }
 
+/**
+ * The router's per-step cache diagnostics agree with the transcript under
+ * the same rule, whenever the log holds exactly the transcript's requests.
+ */
+function expectDiagnosticsMatch(run: Run): string[] {
+  const steps = run.records.flatMap(r => r.steps ?? [])
+
+  if (steps.length < 2 || steps.length !== run.main.length) return []
+
+  const expected = run.main.map((step, i) => i === 0 ? undefined : {
+    cache: cacheOutcomeOf(usageOf(run.main[i - 1] as Step), usageOf(step)),
+    effortChanged: step.effort !== run.main[i - 1]?.effort,
+  })
+  const logged = steps.map((s: any) => s.cache === undefined ? undefined : { cache: s.cache, effortChanged: s.effortChanged === true })
+
+  return expectIf(JSON.stringify(logged) === JSON.stringify(expected),
+    `the router's cache diagnostics ${JSON.stringify(logged)} match the transcript's ${JSON.stringify(expected)}`)
+}
+
+/** One line per scenario: each main request's effort, answer kind, cache read and ledger outcome. */
+function cacheTable(main: Step[]): string {
+  return main.map((step, i) => {
+    const kind = step.thinking > 0 ? `think ${step.thinking}` : 'text'
+    if (i === 0) return `${step.effort}/${kind} first`
+
+    const before = main[i - 1] as Step
+    const outcome: CacheOutcome = cacheOutcomeOf(usageOf(before), usageOf(step))
+
+    return `${step.effort}/${kind} ${step.cacheRead}/${before.cacheRead + before.cacheWrite + before.input} ${outcome}`
+  }).join(' · ')
+}
+
 function stepsOf(path: string, sidechain: boolean): Step[] {
-  const seen = new Set<string>()
+  const byId = new Map<string, Step>()
   const steps: Step[] = []
 
   for (const raw of readFileSync(path, 'utf8').split('\n')) {
@@ -542,19 +779,32 @@ function stepsOf(path: string, sidechain: boolean): Step[] {
     const line = JSON.parse(raw)
     const id = line.message?.id
 
-    if (line.type !== 'assistant' || !id || seen.has(id)) continue
+    if (line.type !== 'assistant' || !id) continue
 
-    seen.add(id)
+    // A response is recorded one content block per line, with the same usage.
+    const hasThinking = (line.message.content ?? []).some((block: { type?: string }) => block?.type === 'thinking')
+    const known = byId.get(id)
+
+    if (known) {
+      if (hasThinking) known.thinking = Math.max(known.thinking, 1)
+      continue
+    }
 
     const usage = line.message.usage ?? {}
-
-    steps.push({
+    const step: Step = {
       effort: line.effort,
       cacheRead: usage.cache_read_input_tokens ?? 0,
       cacheWrite: usage.cache_creation_input_tokens ?? 0,
       input: usage.input_tokens ?? 0,
       sidechain,
-    })
+      thinking: Math.max(usage.output_tokens_details?.thinking_tokens ?? 0, hasThinking ? 1 : 0),
+      at: Date.parse(line.timestamp ?? '') || 0,
+      model: line.message.model,
+      version: line.version,
+    }
+
+    byId.set(id, step)
+    steps.push(step)
   }
 
   return steps
@@ -582,7 +832,44 @@ function subagentStepsOf(transcript: string): Step[] {
     .flatMap(name => stepsOf(join(dir, name), true))
 }
 
-async function runScenario(name: string, scenario: Scenario): Promise<{ name: string; failures: string[]; seconds: number }> {
+type Outcome = {
+  name: string
+  /** `known`: every failure is a cache failure that matches the observed host pattern. */
+  status: 'pass' | 'fail' | 'known'
+  routing: 'pass' | 'fail' | 'n/a'
+  cache: 'pass' | 'fail' | 'known' | 'n/a'
+  /** Unexpected failures: the router's behavior, the Claude run, or unexplained cache loss. */
+  failures: string[]
+  /** Cache failures that match the observed host pattern. */
+  known: string[]
+  seconds: number
+  cacheTable?: string
+  /** The router hooks modules the debug log says were loaded. */
+  routers?: string[]
+}
+
+/** `ran`: Claude completed and the checks ran; `cacheChecked`: a check asserted cache reuse. */
+function outcomeOf(name: string, seconds: number, findings: Finding[], ran: boolean, cacheChecked = false, extra: Partial<Outcome> = {}): Outcome {
+  const routing = findings.filter((f): f is string => typeof f === 'string')
+  const runtime = findings.flatMap(f => typeof f === 'object' && 'runtime' in f ? [f.runtime] : [])
+  const cache = findings.flatMap(f => typeof f === 'object' && 'cache' in f ? [f] : [])
+  const unexplained = cache.filter(f => !f.known).map(f => f.cache)
+  const known = cache.filter(f => f.known).map(f => `${f.cache} (${f.known})`)
+  const failures = [...runtime.map(f => `runtime: ${f}`), ...routing.map(f => `routing: ${f}`), ...unexplained.map(f => `cache: ${f}`)]
+
+  return {
+    name,
+    status: failures.length > 0 ? 'fail' : known.length > 0 ? 'known' : 'pass',
+    routing: !ran ? 'n/a' : routing.length > 0 ? 'fail' : 'pass',
+    cache: !ran || !cacheChecked ? 'n/a' : unexplained.length > 0 ? 'fail' : known.length > 0 ? 'known' : 'pass',
+    failures,
+    known,
+    seconds,
+    ...extra,
+  }
+}
+
+async function runScenario(name: string, scenario: Scenario): Promise<Outcome> {
   const dir = join(ROOT, name)
   const logDir = join(dir, 'logs')
 
@@ -605,7 +892,13 @@ async function runScenario(name: string, scenario: Scenario): Promise<{ name: st
     pluginConfigs: { 'effort-router@inline': { options } },
   }
 
-  const env: Record<string, string | undefined> = { ...process.env, CLAUDE_CODE_ENABLE_FUNCTION_HOOKS: '1', ...scenario.env }
+  const env: Record<string, string | undefined> = {
+    ...process.env,
+    ...scenario.env,
+    CLAUDE_CODE_ENABLE_FUNCTION_HOOKS: '1',
+    // The server-side advisor is independent of --tools and the user's model choice.
+    CLAUDE_CODE_DISABLE_ADVISOR_TOOL: '1',
+  }
 
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) delete env[key]
@@ -643,7 +936,7 @@ async function runScenario(name: string, scenario: Scenario): Promise<{ name: st
     child.stdin.write(JSON.stringify({ type: 'user', message: { role: 'user', content: prompts[promptIndex++] } }) + '\n')
     child.stdin.flush()
   }
-  const timeout = setTimeout(() => { timedOut = true; child.kill() }, 300000)
+  const timeout = setTimeout(() => { timedOut = true; child.kill() }, scenario.timeoutMs ?? 300000)
   const stderr = new Response(child.stderr).text()
   send()
   let stdout = '', pending = ''
@@ -657,7 +950,14 @@ async function runScenario(name: string, scenario: Scenario): Promise<{ name: st
       try { message = JSON.parse(line) } catch { continue }
       if (message.type !== 'result') continue
       outputs.push(message)
-      if (!message.is_error && promptIndex < prompts.length) send()
+      if (!message.is_error && promptIndex < prompts.length) {
+        const delay = scenario.followupDelaysMs?.[promptIndex - 1] ?? 0
+        if (delay > 0) {
+          console.log(`${name}: waiting ${delay / 1000}s before turn ${promptIndex + 1}, same Claude process`)
+          await Bun.sleep(delay)
+        }
+        send()
+      }
       else child.stdin.end()
     }
   }
@@ -669,45 +969,65 @@ async function runScenario(name: string, scenario: Scenario): Promise<{ name: st
   const seconds = Math.round((Date.now() - started) / 1000)
   const out = outputs[0]
   if (!out || timedOut || exitCode !== 0 || outputs.some(o => o.is_error)) {
-    return { name, failures: [`Claude failed: exit=${exitCode}, timeout=${timedOut}, result=${outputs.find(o => o.is_error)?.result ?? out?.result ?? stdout.slice(0, 200)}`], seconds }
+    return outcomeOf(name, seconds, [{ runtime: `Claude failed: exit=${exitCode}, timeout=${timedOut}, result=${outputs.find(o => o.is_error)?.result ?? out?.result ?? stdout.slice(0, 200)}` }], false)
   }
 
   const transcript = out.session_id ? transcriptOf(out.session_id) : undefined
 
   if (!transcript) {
-    return { name, failures: ['no transcript found'], seconds }
+    return outcomeOf(name, seconds, [{ runtime: 'no transcript found' }], false)
   }
 
-  const logFile = join(logDir, `${out.session_id}.jsonl`)
-  const records = existsSync(logFile)
-    ? readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line))
-    : []
+  // Each plugin instance writes its own `<session>.<writer>.jsonl`; the names sort by creation time.
+  const records = readdirSync(logDir)
+    .filter(name => name.startsWith(`${out.session_id}.`) && name.endsWith('.jsonl'))
+    .sort()
+    .flatMap(name => readFileSync(join(logDir, name), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)))
+  const main = stepsOf(transcript, false)
 
   const run: Run = {
+    name,
     result: String(out.result ?? ''),
     results: outputs.map(o => String(o.result ?? '')),
     records,
-    main: stepsOf(transcript, false),
+    main,
     subagents: subagentStepsOf(transcript),
     seen: seen.filter(request => request.key === scenarioKey),
     seconds,
+    firstThinking: main[0]?.thinking ?? 0,
+    cache: { checked: false },
   }
 
-  const failures = [...scenario.check(run), ...expectIf(outputs.length === prompts.length, 'every requested turn completed'),
-    ...expectIf(outputs.every(o => !o.permission_denials?.length), 'the scenario completed without permission denials')]
+  const debug = readFileSync(join(dir, 'debug.log'), 'utf8')
+  // Only this folder's copy may register hooks; an installed copy must stay disabled.
+  const routers = [...new Set([...debug.matchAll(/hooks module (effort-router@\S+) loaded/g)].map(m => m[1] as string))]
 
-  if (readFileSync(join(dir, 'debug.log'), 'utf8').includes('hook failed: effort-router')) {
-    failures.push('a hook of the router failed (see debug.log)')
+  const findings: Finding[] = [...scenario.check(run), ...expectDiagnosticsMatch(run),
+    ...expectIf(outputs.length === prompts.length, 'every requested turn completed').map(runtime => ({ runtime })),
+    ...expectIf(outputs.every(o => !o.permission_denials?.length), 'the scenario completed without permission denials').map(runtime => ({ runtime })),
+    ...expectIf(routers.length === 1 && routers[0] === 'effort-router@inline', `only this folder's router loaded (loaded: ${routers.join(', ') || 'none'})`).map(runtime => ({ runtime }))]
+
+  if (debug.includes('hook failed: effort-router')) {
+    findings.push('a hook of the router failed (see debug.log)')
   }
 
-  return { name, failures, seconds }
+  return outcomeOf(name, seconds, findings, true, run.cache.checked, { cacheTable: cacheTable(run.main), routers })
+}
+
+if (LIST) {
+  for (const [name, scenario] of Object.entries(SCENARIOS)) {
+    console.log(`${name.padEnd(36)} ${scenario.real ? 'real classifier (TYPESAFE_API_KEY)' : 'stand-in classifier'}`)
+  }
+  process.exit(0)
 }
 
 const hasKey = Boolean(process.env.TYPESAFE_API_KEY)
 const names = (wanted.length > 0 ? wanted : Object.keys(SCENARIOS)).filter(
   name => hasKey || !SCENARIOS[name]?.real,
 )
-const skipped = (wanted.length > 0 ? wanted : Object.keys(SCENARIOS)).filter(name => !names.includes(name))
+const skipped = (wanted.length > 0 ? wanted : Object.keys(SCENARIOS))
+  .filter(name => !names.includes(name))
+  .map(name => ({ name, reason: 'no TYPESAFE_API_KEY: this scenario asks the real classifier' }))
 const unknown = names.filter(name => !SCENARIOS[name])
 
 if (unknown.length > 0) {
@@ -716,13 +1036,16 @@ if (unknown.length > 0) {
 }
 
 console.log(`effort-router e2e on ${MODEL}: ${names.length} scenarios, work folder ${ROOT}`)
+console.log(`installed copies disabled for these sessions: ${INSTALLED.join(', ')}`)
 
-if (skipped.length > 0) {
-  console.log(`skipped without TYPESAFE_API_KEY: ${skipped.join(', ')}`)
+for (const skip of skipped) {
+  console.log(`SKIP ${skip.name}: ${skip.reason}`)
 }
 
-const results: { name: string; failures: string[]; seconds: number }[] = []
+const results: Outcome[] = []
 mkdirSync(ROOT, { recursive: true })
+
+const LABELS = { pass: 'PASS ', fail: 'FAIL ', known: 'KNOWN' } as const
 
 // Four at a time: enough to finish quickly, few enough for the classifier's
 // per-host rate limit and the subscription.
@@ -731,7 +1054,7 @@ for (let i = 0; i < names.length; i += 4) {
 
   results.push(...(await Promise.all(batch.map(async name => {
     const result = await runScenario(name, SCENARIOS[name] as Scenario)
-    console.log(`${result.failures.length ? 'FAIL' : 'PASS'} ${name} (${result.seconds}s)`)
+    console.log(`${LABELS[result.status]} ${name} (${result.seconds}s)`)
     return result
   }))))
 }
@@ -739,12 +1062,28 @@ for (let i = 0; i < names.length; i += 4) {
 hanging.stop(true)
 stub.stop(true)
 
+console.log('\nRouting checks the router\'s own behavior; cache checks prompt-cache reuse, which the host controls.')
+
 for (const r of results) {
-  console.log(`${r.failures.length === 0 ? 'PASS' : 'FAIL'}  ${r.name.padEnd(20)} ${String(r.seconds).padStart(4)} s${r.failures.map(f => `\n        - ${f}`).join('')}`)
+  console.log(`${LABELS[r.status]}  ${r.name.padEnd(36)} routing ${r.routing.padEnd(4)}  cache ${r.cache.padEnd(5)} ${String(r.seconds).padStart(4)} s` +
+    r.failures.map(f => `\n        - ${f}`).join('') +
+    r.known.map(f => `\n        - cache, matches observed pattern: ${f}`).join('') +
+    (r.cache !== 'n/a' && r.cacheTable ? `\n        cache by request: ${r.cacheTable}` : ''))
 }
 
-const failed = results.filter(r => r.failures.length > 0).length
+for (const skip of skipped) {
+  console.log(`SKIP   ${skip.name.padEnd(36)} ${skip.reason}`)
+}
 
-console.log(`\n${results.length - failed} passed, ${failed} failed`)
-writeFileSync(join(ROOT, 'results.json'), JSON.stringify({ model: MODEL, root: ROOT, skipped, results }, null, 2))
-process.exit(failed === 0 ? 0 : 1)
+const failed = results.filter(r => r.status === 'fail').length
+const known = results.filter(r => r.status === 'known').length
+const exit = failed > 0 ? 1 : known > 0 ? 3 : 0
+
+console.log(`\n${results.length - failed - known} passed, ${failed} failed, ${known} failed only by cache failures matching the observed host pattern, ${skipped.length} skipped`)
+
+if (exit === 3) {
+  console.log('NOT GREEN (exit 3): cache failures remain that match the host pattern observed on Claude Code 2.1.283 with Opus 5.5. Routing and all other checks passed.')
+}
+
+writeFileSync(join(ROOT, 'results.json'), JSON.stringify({ model: MODEL, root: ROOT, installedDisabled: INSTALLED, skipped, results, exit }, null, 2))
+process.exit(exit)

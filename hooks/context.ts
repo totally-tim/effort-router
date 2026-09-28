@@ -57,6 +57,11 @@ export function isContinuation(request: string): boolean {
   return /^(?:yes[,.!]?\s*)?(?:do (?:it|that)|go ahead|continue|proceed|implement (?:it|that|the plan)|make (?:those|these) changes|carry on)[.!\s]*$/i.test(request.trim()) || /^yes[.!\s]*$/i.test(request.trim())
 }
 
+/** The turn hook has no origin field. This envelope identifies background task completions. */
+export function isTaskNotification(request: string): boolean {
+  return /^\s*<task-notification>[\s\S]*<\/task-notification>/.test(request)
+}
+
 export function hasUnresolvedReference(request: string): boolean {
   return !/```/.test(request) && /\b(?:how (?:does|do) (?:this|that|it|these|those) work|explain (?:this|that|it)|fix (?:this|that|it)|refactor (?:this|that|it))\b/i.test(request)
 }
@@ -87,6 +92,62 @@ export function boundedContext(context: TaskContext): TaskContext {
       level: context.previousTask.level, observations: observations(context.previousTask.observations),
     } } : {}),
   }
+}
+
+/** Resolves `path` against the directory `base`, for gitdir and commondir pointers. */
+function resolvePath(base: string, path: string): string {
+  const segments: string[] = []
+  for (const part of (path.startsWith('/') ? path : `${base}/${path}`).split('/')) {
+    if (part === '..') segments.pop()
+    else if (part && part !== '.') segments.push(part)
+  }
+  return `/${segments.join('/')}`
+}
+
+/** What `projectOf` reads of the file system. `stat` follows symbolic links and rejects a missing path. */
+export type ProjectFs = {
+  exists: (path: string) => Promise<boolean>
+  stat: (path: string) => Promise<{ kind: 'file' | 'dir' | 'other'; realPath?: string }>
+  read: (path: string) => Promise<string | undefined>
+}
+
+/**
+ * The project a session root belongs to: Git's common directory for the repository containing the root,
+ * else the root itself, each as its real path. Git records a linked worktree's common directory in
+ * `<gitdir>/commondir`, so every worktree of one repository, and its main working tree, share one identity,
+ * whichever symbolic link reaches them. Only the session root is used, never the shell's current directory.
+ * Only files are read, so a `.git` directory is never read as text.
+ *
+ * Supported: the layouts `git` itself creates on disk (see tests). Not read: `GIT_DIR`, `GIT_WORK_TREE`,
+ * `GIT_COMMON_DIR` and `core.worktree`; a root that is a repository only through them gets the identity of the
+ * nearest `.git` above it, else its own real path. A `.git` file whose target is gone keeps that target's
+ * spelling. Hard links and case aliases keep their own spelling.
+ */
+export async function projectOf(root: string, fs: ProjectFs): Promise<string> {
+  const stat = (path: string) => fs.stat(path).catch(() => undefined)
+  // `exists` first: it answers a missing path without an engine error.
+  const kindOf = async (path: string) => await fs.exists(path).catch(() => false) ? (await stat(path))?.kind : undefined
+  const real = async (path: string) => resolvePath('/', (await stat(path))?.realPath ?? path)
+  const text = (path: string) => fs.read(path).catch(() => undefined)
+  const start = await real(resolvePath('/', root))
+  let dir = start
+  for (let depth = 0; depth < 32; depth++) {
+    const dotGit = `${dir === '/' ? '' : dir}/.git`
+    const kind = await kindOf(dotGit)
+    if (kind === 'file') {
+      const gitdir = /^gitdir:[ \t]*(\S.*?)[ \t]*$/m.exec(await text(dotGit) ?? '')?.[1]
+      if (!gitdir) return real(dotGit)
+      const target = resolvePath(dir, gitdir)
+      const commondir = `${target}/commondir`
+      const common = await kindOf(commondir) === 'file' ? (await text(commondir))?.trim() : undefined
+      return real(common ? resolvePath(target, common) : target)
+    }
+    // A `.git` directory is itself the common directory.
+    if (kind !== undefined) return real(dotGit)
+    if (dir === '/') break
+    dir = dir.slice(0, dir.lastIndexOf('/')) || '/'
+  }
+  return start
 }
 
 /** A repository description is a prior, not proof that a task's target was inspected. */

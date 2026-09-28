@@ -1,6 +1,7 @@
 import { describe, expect, test, tier } from 'claude-code/testing'
 
-import { Breaker, answerOf, classify, requestOf, systemOneUrlOf } from '../hooks/classify'
+import { Breaker, answerOf, classify, classifyAll, inputVariants, requestOf, systemOneUrlOf } from '../hooks/classify'
+import { excerpt } from '../hooks/context'
 import type { Host } from '../hooks/host'
 
 tier('user')
@@ -31,11 +32,14 @@ function hostWith(fetch: Host['fetch']): Host {
     readText: async () => undefined,
     writeText: async () => undefined,
     exists: async () => false,
+    stat: async () => { throw Error('ENOENT') },
     home: async () => '/Users/t',
     systemOneEnv: async () => ({}),
     savedEffort: async () => undefined,
     sessionId: async () => 'session',
+    promptsSinceAnswer: async () => [],
     cwd: async () => '/work',
+    root: async () => '/work',
     registerCommand: async () => undefined,
     redraw: () => undefined,
     say: () => undefined,
@@ -66,7 +70,7 @@ describe('classify', () => {
 
     expect(body.state.request).toHaveLength(4000)
     expect(body.state.previous_request).toHaveLength(1000)
-    expect(body.state.previous_answer_head).toBeUndefined()
+    expect(body.state.previous_answer).toBeUndefined()
     expect(Object.keys(body.questions.effort.criteria)).toEqual(['low', 'medium', 'high', 'xhigh'])
   })
 
@@ -84,7 +88,7 @@ describe('classify', () => {
     expect(Object.keys(plain.state)).toEqual(['request'])
     expect(plain.questions.effort.instructions).not.toContain('previous_turn')
     expect(plain.questions.effort.instructions).toMatch(/How much reasoning does this coding-agent request need\?$/)
-    expect(rich.state.earlier_exchanges).toEqual([{ request: 'e'.repeat(500), answer_head: 'a' }])
+    expect(rich.state.earlier_exchanges).toEqual([{ request: excerpt('e'.repeat(900), 500), answer: 'a' }])
     expect(rich.state.previous_turn).toEqual({ failed_tool_calls: 3, model_requests: 12, interrupted: true })
     expect(rich.questions.effort.instructions).toContain('previous_turn')
   })
@@ -97,6 +101,50 @@ describe('classify', () => {
       confidence: 0.54,
       context: 'sufficient', contextSufficient: true, relation: 'new',
     })
+  })
+
+  test('context and continuity use conversation history while all effort votes still count', async () => {
+    const input = { request: 'I logged you in', earlier: [{ request: 'Migrate the apps after DNS login' }],
+      previousTurn: { toolErrors: 1, requests: 15, interrupted: false } }
+    const result = await classifyAll(hostWith(async (_url, init) => {
+      const state = JSON.parse(init.body!).state
+      const body = JSON.parse(ANSWER)
+      body.answers.effort.probabilities = state.previous_turn ? { xhigh: 1 } : { low: 1 }
+      body.answers.context = state.earlier_exchanges
+        ? { choice: 'sufficient', probabilities: { sufficient: .85, missing_scope: .15 } }
+        : { choice: 'missing_scope', probabilities: { missing_scope: 1 } }
+      body.answers.relation = state.earlier_exchanges
+        ? { choice: 'continuation', probabilities: { continuation: 1 } }
+        : { choice: 'new', probabilities: { new: 1 } }
+      return { status: 200, ok: true, headers: {}, text: JSON.stringify(body) }
+    }), CONFIG, 'k', inputVariants(input))
+    expect(result).toMatchObject({ contextSufficient: true, relation: 'continuation', probabilities: { low: 2 / 3, xhigh: 1 / 3 } })
+  })
+
+  test('a failed conversation variant fails closed even when other variants answer', async () => {
+    const inputs = inputVariants({ request: 'Proceed with the change', earlier: [{ request: 'Plan' }],
+      previousTurn: { toolErrors: 0, requests: 1, interrupted: false } })
+    const result = await classifyAll(hostWith(async (_url, init) => JSON.parse(init.body!).state.earlier_exchanges
+      ? { status: 503, ok: false, headers: {}, text: '' }
+      : { status: 200, ok: true, headers: {}, text: ANSWER }), CONFIG, 'k', inputs)
+    expect(result).toMatchObject({ failure: 'context assessment: http 503' })
+  })
+
+  test('context still requires 80 percent confidence in the selected variant', async () => {
+    const body = JSON.parse(ANSWER)
+    body.answers.context.probabilities = { sufficient: .79, missing_scope: .21 }
+    const result = await classifyAll(hostWith(async () => ({ status: 200, ok: true, headers: {}, text: JSON.stringify(body) })),
+      CONFIG, 'k', inputVariants({ request: 'Explain the application' }))
+    expect(result).toMatchObject({ contextSufficient: false })
+  })
+
+  test('bounded history retains the final pending step and redacts it', () => {
+    const body = requestOf({ request: 'I logged you in', previousAnswer: 'HEAD ' + 'detail '.repeat(400) + 'Login pending. api_key=opaque_value',
+      earlier: [{ request: 'Migrate', answer: 'HEAD ' + 'detail '.repeat(400) + 'DNS login pending.' }] }, 'jev-latest') as any
+    expect(body.state.previous_answer.length).toBe(1000)
+    expect(body.state.previous_answer).toContain('Login pending.')
+    expect(body.state.previous_answer).not.toContain('opaque_value')
+    expect(body.state.earlier_exchanges[0].answer).toContain('DNS login pending.')
   })
 
   test('a body without an effort answer reads as nothing', () => {

@@ -1,6 +1,9 @@
 import type { Args, On } from 'claude-code'
 import { type MockClock, mock } from 'claude-code/testing'
 
+// The native test runner supplies this timer; plugin types exclude DOM globals.
+declare function setTimeout(callback: () => void, milliseconds: number): unknown
+
 export const HOME = '/Users/t'
 export const LOG_FILE = `${HOME}/.local/state/effort-router/the-session.jsonl`
 
@@ -18,19 +21,35 @@ export type WorldOptions = {
    */
   answers?: readonly (Probabilities | number | 'hang' | { after: number; answer: Probabilities })[]
   /**
+   * An answer chosen by the request the classifier reads, ahead of `answers`.
+   */
+  answerOf?: (request: string) => Probabilities | undefined
+  /**
    * The environment besides HOME; by default `TYPESAFE_API_KEY` is set.
    */
   env?: Readonly<Record<string, string>>
   /**
-   * Files that exist before the session starts, by absolute path.
+   * Files that exist before the session starts, by absolute path. The text
+   * `<directory>` makes the path a directory, which a read rejects.
    */
   files?: Readonly<Record<string, string>>
+  /**
+   * Where a symbolic link lands, by the link's path; `fs.stat` follows it.
+   */
+  links?: Readonly<Record<string, string>>
   /**
    * Effort levels saved per model under `modelSettings`; none when absent.
    */
   saved?: Readonly<Record<string, string>>
   contexts?: readonly ('sufficient' | 'missing_target' | 'missing_scope' | 'missing_evidence')[]
   relations?: readonly ('new' | 'continuation')[]
+  /** Real delays let the native hook budget exercise its deadline. */
+  wallDelays?: Readonly<Record<number, number>>
+  /**
+   * The input-token usage each model request reports, in order; the last
+   * repeats. By default every request reads 100 cached tokens and writes 5.
+   */
+  usages?: readonly { input: number; cacheRead: number; cacheWrite: number }[]
 }
 
 export type World = {
@@ -52,11 +71,56 @@ export type World = {
    */
   envReads: string[]
   files: Map<string, string>
+  /**
+   * Every path a read rejected because it is a directory, as the engine logs it.
+   */
+  directoryReads: string[]
+  /**
+   * A session's decision records across its log files: each plugin instance
+   * writes `<session>.<writer>.jsonl`, and an earlier version's single
+   * `<session>.jsonl` comes first.
+   */
   records: (sessionId?: string) => Record<string, unknown>[]
   /**
    * The id `$.session.id` answers; set it to start another session.
    */
   session: { id: string }
+  /**
+   * What `$.session.cwd` and `$.session.root` answer; a shell `cd` moves only `cwd`.
+   */
+  location: { cwd: string; root: string }
+  /**
+   * What `$.session.messages` answers, oldest first; `null` makes the read fail.
+   */
+  transcript: { rows: { role: 'user' | 'assistant'; text: string }[] | null }
+  /**
+   * The values held in the session (`$.state`), kept per conversation as the
+   * host keeps them: `session.end` drops them, and after the session id
+   * changes nothing of the last one is read. Versions count up across all
+   * values, as the host's do. `write` stands in for another instance of the
+   * plugin; `clear` for a new process.
+   */
+  state: {
+    read: (key: string, id: string) => { value: unknown; version: number }
+    write: (key: string, id: string, value: unknown) => number
+    clear: () => void
+    writes: number
+    /** Delays the memory read to reproduce a prompt arriving during restore. */
+    gate?: Promise<void>
+    /**
+     * The host reads one moment per dispatch. `freeze` fixes the moment every
+     * read returns until `thaw`, as for the reads of one dispatch; a write
+     * always meets the current version, and a missed one reports it.
+     */
+    freeze: () => void
+    thaw: () => void
+    /** Runs after each memory read while set: another instance writing between a read and a write. */
+    afterRead?: () => void
+    /** While set, the host refuses every read and write of the memory. */
+    refuse?: boolean
+    /** Each conditional write of the memory: the version it was given and whether it landed. */
+    memorySets: { ifVersion: number | undefined; isSet: boolean }[]
+  }
 }
 
 /**
@@ -73,6 +137,14 @@ export function world(on: On, options: WorldOptions = {}): World {
   const drawn: string[] = []
   const envReads: string[] = []
   const files = new Map<string, string>(Object.entries(options.files ?? {}))
+  const directoryReads: string[] = []
+  // A path through a link: the link's target, then the rest of the path.
+  const realOf = (path: string): string => {
+    for (const [link, target] of Object.entries(options.links ?? {})) {
+      if (path === link || path.startsWith(`${link}/`)) return realOf(target + path.slice(link.length))
+    }
+    return path
+  }
   const answers = options.answers ?? [{ low: 0.98, medium: 0.02, high: 0, xhigh: 0 }]
 
   // Answers the environment and records each lookup. One handler per event,
@@ -91,8 +163,70 @@ export function world(on: On, options: WorldOptions = {}): World {
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   const session = { id: 'the-session' }
 
+  const held = new Map<string, { value: unknown; version: number }>()
+  let frozen: Map<string, { value: unknown; version: number }> | undefined
+  let versions = 0
+  const slotOf = (key: string, id: string | undefined) => JSON.stringify([session.id, key, id ?? ''])
+  const state: World['state'] = {
+    read: (key, id) => held.get(slotOf(key, id)) ?? { value: undefined, version: 0 },
+    write: (key, id, value) => {
+      versions += 1
+      held.set(slotOf(key, id), { value: JSON.parse(JSON.stringify(value)), version: versions })
+
+      return versions
+    },
+    clear: () => held.clear(),
+    writes: 0,
+    freeze: () => {
+      frozen = new Map(held)
+    },
+    thaw: () => {
+      frozen = undefined
+    },
+    memorySets: [],
+  }
+
+  on('session.end', ($, e) => {
+    held.clear()
+
+    return { sessionId: e.sessionId }
+  })
+
+  on('state.get', async ($, e) => {
+    if (e.key === 'memory' && state.gate) await state.gate
+    if (e.key === 'memory' && state.refuse) return { deny: 'state refused' }
+    const { value, version } = frozen
+      ? frozen.get(slotOf(e.key, e.id as string)) ?? { value: undefined, version: 0 }
+      : state.read(e.key, e.id as string)
+
+    if (e.key === 'memory') state.afterRead?.()
+
+    return { value: { value: value as never, version } }
+  })
+  on('state.set', ($, e) => {
+    if (e.key === 'memory' && state.refuse) return { deny: 'state refused' }
+    const current = state.read(e.key, e.id as string).version
+
+    if (e.ifVersion !== undefined && e.ifVersion !== current) {
+      if (e.key === 'memory') state.memorySets.push({ ifVersion: e.ifVersion, isSet: false })
+      return { value: { isSet: false as const, version: current } }
+    }
+
+    state.writes += 1
+    if (e.key === 'memory') state.memorySets.push({ ifVersion: e.ifVersion, isSet: true })
+
+    return { value: { isSet: true as const, version: state.write(e.key, e.id as string, e.value) } }
+  })
+
   on('session.id', () => ({ value: session.id }))
-  on('session.cwd', () => ({ value: '/work' }))
+  const location = { cwd: '/work', root: '/work' }
+  on('session.cwd', () => ({ value: location.cwd }))
+  on('session.root', () => ({ value: location.root }))
+  const transcript: World['transcript'] = { rows: [] }
+  on('session.messages', () => {
+    if (transcript.rows === null) throw new Error('transcript unavailable')
+    return { value: transcript.rows.map(row => ({ ...row, toolUses: [] })) }
+  })
   on('settings.read', () => ({
     value: {
       modelSettings: Object.fromEntries(
@@ -117,12 +251,35 @@ export function world(on: On, options: WorldOptions = {}): World {
   })
 
   on('fs.read', ($, e) => {
-    const text = files.get(e.path)
+    const text = files.get(realOf(e.path))
+
+    if (text === '<directory>') {
+      directoryReads.push(e.path)
+
+      return { deny: `EISDIR: ${e.path}` }
+    }
 
     return text === undefined ? { deny: `ENOENT: ${e.path}` } : { value: text }
   })
 
-  on('fs.exists', ($, e) => ({ value: files.has(e.path) }))
+  on('fs.exists', ($, e) => ({ value: files.has(realOf(e.path)) || [...files.keys()].some(path => path.startsWith(`${realOf(e.path).replace(/\/$/, '')}/`)) }))
+
+  on('fs.stat', ($, e) => {
+    const real = realOf(e.path)
+    const text = files.get(real)
+    const isDir = text === '<directory>' || [...files.keys()].some(path => path.startsWith(`${real}/`))
+
+    if (text === undefined && !isDir) return { deny: `ENOENT: ${e.path}` }
+
+    return { value: { kind: isDir ? 'dir' : 'file', size: text?.length ?? 0, mtimeMs: 0, isLink: real !== e.path,
+      ...(e.resolve ? { realPath: real } : {}) } }
+  })
+  on('fs.list', ($, e) => {
+    const dir = `${(e.path ?? '').replace(/\/$/, '')}/`
+    const names = [...files.keys()].filter(path => path.startsWith(dir) && !path.slice(dir.length).includes('/')).map(path => path.slice(dir.length))
+
+    return { value: names.sort().map(name => ({ name, kind: 'file' as const, size: files.get(`${dir}${name}`)!.length, isLink: false })) }
+  })
 
   on('fs.write', ($, e) => {
     files.set(e.path, e.text)
@@ -132,8 +289,11 @@ export function world(on: On, options: WorldOptions = {}): World {
 
   on('http.fetch', async ($, e) => {
     posts.push(e)
+    const wall = options.wallDelays?.[posts.length]
+    if (wall) await new Promise<void>(resolve => setTimeout(resolve, wall))
 
-    const answer = answers[Math.min(posts.length, answers.length) - 1]
+    const request = String((JSON.parse(String(e.init?.body ?? '{}')) as { state?: { request?: unknown } }).state?.request ?? '')
+    const answer = options.answerOf?.(request) ?? answers[Math.min(posts.length, answers.length) - 1]
 
     if (answer === 'hang') {
       return new Promise(() => undefined)
@@ -170,6 +330,7 @@ export function world(on: On, options: WorldOptions = {}): World {
 
   on('turn.step', async function* ($, e) {
     sent.push(e.effort)
+    const usage = options.usages?.[Math.min(sent.length, options.usages.length) - 1]
 
     return {
       turnId: e.turnId,
@@ -179,19 +340,27 @@ export function world(on: On, options: WorldOptions = {}): World {
       stopReason: 'end_turn',
       usage: {
         model: e.model,
-        input_tokens: 1,
+        input_tokens: usage?.input ?? 1,
         output_tokens: 10,
-        cache_read_input_tokens: 100,
-        cache_creation_input_tokens: 5,
+        cache_read_input_tokens: usage?.cacheRead ?? 100,
+        cache_creation_input_tokens: usage?.cacheWrite ?? 5,
       },
     }
   })
 
-  const records = (sessionId = 'the-session') =>
-    (files.get(logFileOf(sessionId)) ?? '')
-      .split('\n')
-      .filter(Boolean)
-      .map(line => JSON.parse(line) as Record<string, unknown>)
+  // A session's records: its first log and that log's parts, then the logs of later instances.
+  const records = (sessionId = 'the-session') => {
+    const first = logFileOf(sessionId)
+    const prefix = first.replace(/\.jsonl$/, '.')
+    // An earlier version's single log and its numbered parts first, then each
+    // instance's own logs in the order they were created.
+    const rank = (path: string) => path === first ? 0 : /^\d+\.jsonl$/.test(path.slice(prefix.length)) ? Number(path.slice(prefix.length).split('.')[0]) : Infinity
 
-  return { clock, posts, sent, said, drawn, envReads, files, records, session }
+    return [...files.keys()]
+      .filter(path => path === first || (path.startsWith(prefix) && path.endsWith('.jsonl')))
+      .sort((a, b) => rank(a) === rank(b) ? 0 : rank(a) - rank(b))
+      .flatMap(path => files.get(path)!.split('\n').filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>))
+  }
+
+  return { clock, posts, sent, said, drawn, envReads, files, directoryReads, records, session, location, transcript, state }
 }
