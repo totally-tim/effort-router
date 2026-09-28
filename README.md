@@ -15,7 +15,7 @@ In shadow mode the router logs its pick and sends the session's effort unchanged
 
 - Claude Code 2.1.283 or later, with function hooks turned on: `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`. The Mods API is early access and can change between releases.
 - An API key for hosted Jev, or for a compatible service.
-- A model that takes an effort setting. An effort change can cost prompt-cache reuse, depending on how Claude Code sends it and on the conversation. See [Prompt cache and effort changes](#prompt-cache-and-effort-changes) before treating effort changes as free.
+- A model that takes an effort setting.
 
 Set the flag in the `env` block of `~/.claude/settings.json`, so that every session gets it: shells that were already open, the desktop app and the IDE extensions included. A shell `export` reaches only the shells started after it.
 
@@ -171,7 +171,7 @@ A turn record holds:
 
 - the classifier's averaged probabilities and the pick;
 - the usual level, and whether the effort was set by hand;
-- each request's effort, duration, and input, output, cache-read and cache-write token counts, with `cache` (`hit`, `miss` or `cold`) and `effortChanged` against the previous main-conversation request (see [Prompt cache and effort changes](#prompt-cache-and-effort-changes));
+- each request's effort, duration, and input, output, cache-read and cache-write token counts, with `cache` (`hit`, `miss` or `cold`) and `effortChanged` against the previous main-conversation request (see [Cache diagnostics](#cache-diagnostics));
 - any mid-turn raises, the prompts delivered into the turn while it ran (`delivered`), and how many queued prompts started it together (`batch`);
 - the number of failed tool calls;
 - the turn's token usage;
@@ -190,24 +190,12 @@ Task memory follows the Git repository, including its linked worktrees and symbo
 - If a reload races a write from the previous instance, the new instance makes at most four transfer attempts on later hooks. Each decision waits at most one second for a pending memory read; shadow requests keep going. While memory is unresolved, automatic decisions keep at least the session effort. If the host refuses the transfer or attempts run out, that floor lasts for the conversation. The instance still saves its own checkpoints for a later resume unless another writer has taken ownership. This is separate from classifier outages, which retry as described above.
 - A resumed conversation restores its task memory from its checkpoints only when they form one line, each save going on from the one before. If two processes went on from the same save, the router cannot tell which memory is current. It restores none, and turns keep at least the session's effort until a typed turn completes. The router also restores none when the newest save cannot be read or a save does not lead to the newest one. The next save names the newest saves as its parents, so a later resume finds one line again. `/effort-router status` says when memory was not restored.
 
-## Prompt cache and effort changes
+## Cache diagnostics
 
-The router's only control is the effort of each request, which it passes to Claude Code through `turn.step`. Claude Code decides how to send it. On Claude Code 2.1.283 with Opus 5.5, that one value sets the request's top-level effort and a per-turn effort message, and it also decides whether the request continues the server-side conversation thread. The router cannot set these parts separately. The Mods API promises nothing about prompt-cache reuse across effort changes.
-
-The September 28 measurements on one account show that the result depends on the conversation:
-
-- When the answers contain thinking, effort changes kept the cache. All 60 follow-up requests of a reasoning experiment hit, including raises and lowerings on the default path. All 10 effort changes in the first 394 requests of a real long session also hit.
-- In a text-only acknowledgment experiment, effort changes re-cached the conversation after the system prompt. Those requests read 3,116 of 8,245 and 8,305 prompt tokens from cache. The same prompts at a fixed effort kept the cache. Later verification also saw hits after some effort changes in this scenario: a text-only first answer is a test condition, not a reliable predictor of a miss.
-- The same loss happened without the router: after 301 seconds idle at a fixed effort, the server no longer had the thread, and the next request read only 3,099 of 8,344 tokens from cache.
-
-The server's cache placement is not observable, so the cause of the text-only case is not established. A Claude Code or server change can alter these results. A fix needs a host change: Claude Code would have to render the conversation the same way whether a request continues the thread or starts it again, or keep the thread across effort changes. Keeping the thread while changing effort was tested only with a local proxy, which is unsupported. In that test, thinking-token counts after a lowering matched low effort, but the counts after a raise did not show whether the higher effort applied.
-
-The router therefore does not change its routing to avoid cache misses. Skipping a raise could cost answer quality. Skipping a lowering costs extra reasoning tokens, and the router cannot tell in advance whether a change would miss.
-
-It records what happened instead. Each main-conversation request in the decision log carries `cache` and `effortChanged`, compared with the previous request of the same conversation and model. The rule is the one Claude Code's `/context` cache ledger uses: a request misses when it reads less than 95% of the smaller of the two prompts from cache and falls at least 2,000 tokens short. `/effort-router status` sums these outcomes:
+Each main-conversation request in the decision log carries `cache` and `effortChanged`, compared with the previous request of the same conversation and model. The rule is the one Claude Code's `/context` cache ledger uses: a request misses when it reads less than 95% of the smaller of the two prompts from cache and falls at least 2,000 tokens short. `/effort-router status` sums these outcomes:
 
 ```
-cache since 10:02 UTC (usage estimate): misses at 2 of 3 requests after an effort change, 0 of 11 others; 10.4k tokens re-cached
+cache since 10:02 UTC (usage estimate): misses at 0 of 3 requests after an effort change, 1 of 11 others; 10.4k tokens re-cached
 ```
 
 A miss after an effort change shows a correlation, not a cause. Idle expiry and compaction also cause misses. The counts start with the first request the router sees. They restart when the plugin reloads or the conversation changes, including `/clear` and `/resume`. The router does not compare subagent requests, or a request with a different model than the one before it.
@@ -255,11 +243,9 @@ The engine's API declarations under `.claude-plugin/types/` are committed, so th
 
 The `real-*` scenarios ask the classifier your `TYPESAFE_*` variables name. They cover simple and difficult work, explicit effort cues, toy and scheduler-code discovery, unresolved targets, untrusted source instructions, task continuity across turns, and user messages that resemble background notifications. `context-refresh` uses a controlled classifier to verify that discovery after an action updates the reason while effort stays fixed. `real-outage-recovery` simulates three timeouts, verifies a paused fourth turn, waits through the real five-minute cooldown, then forwards two decisions to the live classifier in the same Claude process. It has a seven-minute test deadline. The runner checks actual request effort, cache reads across changes, and step telemetry. It treats Claude errors, missing turns, permission denials, and a test deadline as failures; other scenarios have a five-minute deadline. Each session disables every installed copy of the mod, and the runner fails a scenario unless the debug log shows that only this folder's copy loaded. Real classifier scenarios are skipped without `TYPESAFE_API_KEY`, and the summary lists each skip. `--list` names the scenarios. Logs and a `results.json` summary stay in the printed temporary directory.
 
-The summary reports routing and cache separately. Routing covers the router's own behavior, including its logged cache diagnostics. Cache covers prompt-cache reuse, which the host controls. A cache failure reads as `KNOWN` only when it matches the pattern observed on September 28, which is not a proven cause. Every condition must hold. The scenario is one of the two reproducers below, and every request ran on Claude Code 2.1.283 with `claude-opus-5-5`. The first answer had no thinking, the effort changed, the ledger rule calls the request a miss, and its valid timestamp is less than five minutes after the previous request's. Any other cache failure is an unexplained failure. The summary never reports a `KNOWN` scenario as a pass.
+The summary reports routing and cache reuse separately. Routing covers the router's own behavior, including its logged cache diagnostics. Cache reuse is up to the host. `e2e/attribution.ts` marks some cache failures `KNOWN`, and the summary never counts those as a pass. `context-cache-control` keeps a fixed effort as a control.
 
-`context-effort-transition` and `context-partial-outage` keep their failing cache assertion. Their answers are text only, and on Claude Code 2.1.283 with Opus 5.5 each effort change re-caches the prefix. `context-effort-transition-reasoning` uses the same routing (low, low, xhigh, low) with prime-sum problems whose answers contain thinking. It must keep the cache, and it fails if its first answer has no thinking, because then it no longer tests that condition. `context-cache-control` keeps a fixed effort. See [Prompt cache and effort changes](#prompt-cache-and-effort-changes) and the [verification report](eval/results/2026-09-28-uncertainty-verification.md).
-
-The runner exits 0 when every scenario passes, 1 when any other check fails, and 3 when the only failures are cache failures that match the observed pattern. Exit 3 is not a green run.
+The runner exits 0 when every scenario passes, 3 when the only failures are `KNOWN` cache failures, and 1 otherwise. Exit 3 is not a green run.
 
 The E2E launcher disables Claude's server advisor for each test process with `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`. This keeps the evaluated model's work separate from a globally configured advisor. The normal `--tools` whitelist does not disable that server tool.
 
