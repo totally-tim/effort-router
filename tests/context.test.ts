@@ -17,7 +17,7 @@ describe('task evidence', () => {
   })
   test('needs-context describes an effort hold, not every incomplete assessment', () => {
     const missing = { ...low, context: 'missing_evidence' as const, contextSufficient: false }
-    expect(route({ request: 'Explain the design' }, missing)).toMatchObject({ level: 'high', contextHeld: true, reason: 'insufficient context' })
+    expect(route({ request: 'Explain the design' }, missing)).toMatchObject({ level: 'high', unheld: 'low', contextHeld: true, reason: 'insufficient context' })
     expect(route({ request: 'Explain the design' }, { ...missing, probabilities: { xhigh: 1 } }))
       .toMatchObject({ level: 'xhigh', contextSufficient: false, contextHeld: false, reason: 'classifier' })
     expect(route({ request: 'Continue', context: { observations: [], previousTask: { request: 'Design', level: 'xhigh', observations: [] } } }, missing))

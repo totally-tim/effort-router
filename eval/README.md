@@ -75,3 +75,15 @@ bun eval/compare.ts report --out ~/.local/state/effort-router/compare-run
 `prepare` extracts each sample with both trees and hashes their request bodies. It sends nothing. Samples with identical bodies need no calls, since their difference is zero. `score` calls the classifier only for changed samples and interleaves both arms in one window, because identical bodies get different answers in different time windows. `--after` defaults to this tree. `--datasets 47=DIR,67=DIR` overrides the two frozen sets. After an integration, run `prepare --since <earlier out>`. Then `score` calls only samples whose bodies changed since that run. `score` refuses to run if either tree changed after `prepare`.
 
 `report` gives the paired change in the sufficient-context probability with a bootstrap interval, levels at high and xhigh baselines, and counts below, equal to and above the frozen labels. The labels are earlier model judgments. Agreement with them is not a task-success result. Inputs, bodies and answers stay in `--out` with mode 600.
+
+## Levels a context hold passes on
+
+`hold-chain.ts` replays each recent interactive Claude session in order, so one task's routed level reaches the next task's previous-task level and continuation floor. `compare.ts` and `replay.ts score` cannot measure that, because they score single tasks. The `before` arm passes on the effort a context hold kept; the `after` arm passes on the classifier's assessment. The [September 29 results](results/2026-09-29-hold-continuation.md) describe the arms and their limits.
+
+```sh
+bun eval/hold-chain.ts run --sessions 200 --out ~/.local/state/effort-router/hold-chain
+bun eval/hold-chain.ts label --out ~/.local/state/effort-router/hold-chain
+bun eval/hold-chain.ts report --out ~/.local/state/effort-router/hold-chain
+```
+
+`label` asks the independent judge of `replay.ts label` about the tasks whose level differs between the arms. Inputs, answers and labels stay under `--out` with mode 600.

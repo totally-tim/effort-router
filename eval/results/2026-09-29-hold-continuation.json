@@ -1,0 +1,62 @@
+{
+  "manifest": {
+    "created": "2026-09-29T21:25:51.105Z",
+    "model": "jev-latest",
+    "baseline": "xhigh",
+    "routingVersion": "3804a7f8d5a1222c",
+    "sessions": 163,
+    "tasks": 498,
+    "fingerprint": "aa3a4fc9a322a4fe"
+  },
+  "tasks": 498,
+  "failures": 0,
+  "held": 44,
+  "heldReleasedByDiscovery": 0,
+  "heldThenContinued": 6,
+  "changed": 10,
+  "changedLower": 9,
+  "changedHigher": 1,
+  "changedHistoricalRequests": 267,
+  "historicalRequests": 5714,
+  "transitions": {
+    "xhigh->medium": 2,
+    "xhigh->high": 5,
+    "high->medium": 2,
+    "low->medium": 1
+  },
+  "levels": {
+    "before": {
+      "low": 122,
+      "medium": 113,
+      "high": 35,
+      "xhigh": 228
+    },
+    "after": {
+      "low": 121,
+      "medium": 118,
+      "high": 38,
+      "xhigh": 221
+    }
+  },
+  "againstLabels": {
+    "labeled": 10,
+    "before": {
+      "n": 10,
+      "below": 0,
+      "exact": 1,
+      "above": 9
+    },
+    "after": {
+      "n": 10,
+      "below": 0,
+      "exact": 3,
+      "above": 7
+    }
+  },
+  "limitations": [
+    "Replay knows the transcript, not the live relation answers that composed task memory.",
+    "Discovery is one assessment with the evidence before the first action; live discovery can check twice.",
+    "Mid-turn messages, tool-failure raises and batches are not replayed.",
+    "Labels are an independent model judgment, not measured task success."
+  ]
+}

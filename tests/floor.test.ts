@@ -220,3 +220,119 @@ describe('floor: counterexamples that must keep their behavior', () => {
     expect(w.sent).toEqual(['max', 'max'])
   })
 })
+
+describe('a context hold passes on what the classifier assessed, not the effort it kept', () => {
+  // A first turn asks once; a later turn asks twice, the second time with how the last turn went.
+  const read = (_$: unknown, e: { tool: string } & Record<string, unknown>) => e.tool === 'Read'
+    ? { result: {}, text: `source ${String(e.file_path)}`, isReadOnly: true as const } : { result: {}, text: 'ok' }
+
+  async function typed($: Engine, turnId: string, text: string): Promise<void> {
+    await $.turn.start({ text, turnId })
+    await step($, turnId, 0, 'xhigh')
+    await complete($, turnId)
+  }
+
+  test('H1 a continuation with its own context runs at its own level; an empty turn still keeps the hold', async ($, on) => {
+    const w = world(on, { answers: [{ low: 1 }], contexts: ['missing_target', 'sufficient'], relations: ['new', 'continuation'] })
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Do we have the agentum repo on this computer', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    expect(await spinner($, w.drawn)).toBe('Baking… at xhigh effort (router: needs context)')
+    await complete($, 't1')
+    await typed($, 't2', '')
+    await typed($, 't3', 'Move it to the latest develop.')
+    expect(JSON.parse(w.posts.at(-1)!.init!.body!).state.task_context.previousTask.level).toBe('low')
+    expect(w.sent).toEqual(['xhigh', 'xhigh', 'low'])
+    expect(w.records()[2]).toMatchObject({ continuation: true, context_sufficient: true, reason: 'continue task' })
+  })
+
+  test('H2 control: a continuation that lacks context too keeps the hold', async ($, on) => {
+    const w = world(on, { answers: [{ low: 1 }], contexts: ['missing_target', 'missing_scope'], relations: ['new', 'continuation'] })
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await typed($, 't1', 'Do we have the agentum repo on this computer')
+    await typed($, 't2', 'Move it to the latest develop.')
+    expect(w.sent).toEqual(['xhigh', 'xhigh'])
+    expect(w.records()[1]).toMatchObject({ continuation: true, reason: 'insufficient context' })
+  })
+
+  test('H3 the held turn passes on its tool-failure raise', async ($, on) => {
+    const w = world(on, { answers: [{ low: 1 }], contexts: ['missing_target', 'sufficient'], relations: ['new', 'continuation'] })
+    on('tool.call', () => ({ result: {}, text: 'ENOENT', isError: true }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Do we have the agentum repo on this computer', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    await $.tool.call({ tool: 'Bash', command: 'ls ~/src/agentum' })
+    await $.tool.call({ tool: 'Bash', command: 'ls ~/code/agentum' })
+    await step($, 't1', 1, 'xhigh')
+    await complete($, 't1')
+    await typed($, 't2', 'Continue with that.')
+    expect(w.sent).toEqual(['xhigh', 'xhigh', 'medium'])
+  })
+
+  test('H4 a hold kept for active work passes on the sufficient assessment that came after it', async ($, on) => {
+    const w = world(on, { answers: [{ low: 1 }, { medium: 1 }, { low: 1 }], contexts: ['missing_target', 'sufficient'], relations: ['new', 'new', 'continuation'] })
+    on('tool.call', read as never)
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Explain the application', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    await $.tool.call({ tool: 'Bash', command: 'make change' })
+    await $.tool.call({ tool: 'Read', file_path: '/work/a.ts' })
+    await step($, 't1', 1, 'xhigh')
+    await complete($, 't1')
+    expect(w.records()[0]).toMatchObject({ reason: 'work in progress', assessed_floor: 'medium' })
+    await typed($, 't2', 'Continue with that.')
+    expect(w.sent).toEqual(['xhigh', 'xhigh', 'medium'])
+  })
+
+  test('H6 a message typed during a held turn counts toward the level its task passes on', async ($, on) => {
+    const w = world(on, { answers: [{ low: 1 }, { high: 1 }, { low: 1 }], contexts: ['missing_target', 'sufficient'], relations: ['new', 'new', 'continuation'] })
+    on('prompt.submit', (_$, e) => ({ text: e.text }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Do we have the agentum repo on this computer', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    await $.prompt.submit({ turnId: 't1', text: 'Also redesign the release process.', wait: false, origin: { kind: 'composer' } })
+    await step($, 't1', 1, 'xhigh')
+    await complete($, 't1')
+    expect(w.records()[0]).toMatchObject({ reason: 'insufficient context', mid_turn: [{ pick: 'high', raised: false }] })
+    await typed($, 't2', 'Continue with that.')
+    expect(w.sent).toEqual(['xhigh', 'xhigh', 'high'])
+  })
+
+  test('H7 a message typed during a held turn that gets no answer leaves the task at the kept effort', async ($, on) => {
+    const w = world(on, { answers: [{ low: 1 }, 503, { low: 1 }], contexts: ['missing_target', 'sufficient'], relations: ['new', 'new', 'continuation'] })
+    on('prompt.submit', (_$, e) => ({ text: e.text }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Do we have the agentum repo on this computer', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    await $.prompt.submit({ turnId: 't1', text: 'Also redesign the release process.', wait: false, origin: { kind: 'composer' } })
+    await step($, 't1', 1, 'xhigh')
+    await complete($, 't1')
+    await typed($, 't2', 'Continue with that.')
+    expect(w.sent).toEqual(['xhigh', 'xhigh', 'xhigh'])
+  })
+
+  test('H5 control: evidence no answer assessed passes on the effort kept for it', async ($, on) => {
+    const w = world(on, { answers: [{ low: 1 }], contexts: ['missing_target', 'missing_target', 'missing_target', 'sufficient'],
+      relations: ['new', 'new', 'new', 'continuation'] })
+    on('tool.call', read as never)
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Explain the application', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    for (let i = 1; i <= 3; i++) {
+      await $.tool.call({ tool: 'Read', file_path: `/work/f${i}.ts` })
+      await step($, 't1', i, 'xhigh')
+    }
+    await complete($, 't1')
+    expect(w.records()[0]).toMatchObject({ reason: 'discovery budget exhausted' })
+    await typed($, 't2', 'Continue with that.')
+    expect(w.sent.at(-1)).toBe('xhigh')
+    expect(w.records()[1]).toMatchObject({ continuation: true, context_sufficient: true, reason: 'continue task' })
+  })
+})

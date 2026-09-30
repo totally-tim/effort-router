@@ -236,6 +236,9 @@ const stub = Bun.serve({
     }
 
     const contextRefresh = key === 'stub-key-context-refresh'
+    // The first turn lacks context and is held; its follow-up continues it with context of its own.
+    const holdContinuation = key === 'stub-key-context-hold-continuation'
+    const followsUp = typeof (body.state as any)?.previous_request === 'string'
     const hasEvidence = Boolean((body.state as any)?.task_context?.observations?.length)
     const partialOutage = key === 'stub-key-context-partial-outage'
     const effortTransition = key === 'stub-key-context-effort-transition'
@@ -245,7 +248,7 @@ const stub = Bun.serve({
     if (partialOutage && (body.state as any)?.request?.startsWith('Acknowledge gamma') && (body.state as any)?.earlier_exchanges?.length) {
       return Response.json({ detail: 'simulated partial outage' }, { status: 503 })
     }
-    const isEasy = (contextRefresh || partialOutage || effortTransition || reasoningTransition || JSON.stringify(body.state).includes('echo ready')) &&
+    const isEasy = (contextRefresh || holdContinuation || partialOutage || effortTransition || reasoningTransition || JSON.stringify(body.state).includes('echo ready')) &&
       !(effortTransition && (body.state as any)?.request?.startsWith('Acknowledge gamma')) &&
       !(reasoningTransition && (body.state as any)?.request?.startsWith('Problem 3.'))
     const probabilities = isEasy
@@ -257,10 +260,12 @@ const stub = Bun.serve({
       answers: {
         effort: { type: 'choice', choice: isEasy ? 'low' : 'xhigh', probabilities, confidence: 0.9 },
         work: { type: 'choice', choice: 'mechanical', probabilities: { mechanical: 1 } },
-        context: contextRefresh && !hasEvidence
-          ? { type: 'choice', choice: 'missing_evidence', probabilities: { missing_evidence: 1 } }
+        context: (contextRefresh && !hasEvidence) || (holdContinuation && !followsUp)
+          ? { type: 'choice', choice: holdContinuation ? 'missing_target' : 'missing_evidence', probabilities: { [holdContinuation ? 'missing_target' : 'missing_evidence']: 1 } }
           : { type: 'choice', choice: 'sufficient', probabilities: { sufficient: 1 } },
-        relation: { type: 'choice', choice: 'new', probabilities: { new: 1 } },
+        relation: holdContinuation && followsUp
+          ? { type: 'choice', choice: 'continuation', probabilities: { continuation: 1 } }
+          : { type: 'choice', choice: 'new', probabilities: { new: 1 } },
       },
       usage: { input_tokens: 120, output_tokens: 1 },
     })
@@ -377,6 +382,24 @@ const SCENARIOS: Record<string, Scenario> = {
       ...expectIf(run.main.every(s => s.effort === 'xhigh'), 'effort stayed fixed after work started'),
       ...expectSentMatchesTranscript(run), ...expectCacheHolds(run),
     ],
+  },
+  'context-hold-continuation': {
+    prompt: 'Guess in one sentence whether the project folder contains a file named notes.txt. Do not use tools.',
+    followups: ['Now guess in one sentence what that file would contain. Do not use tools.'],
+    effort: 'xhigh', ...stubbed('context-hold-continuation', { mode: 'enforce' }), tools: '',
+    check: run => {
+      const followUp = seen.filter(s => s.key === 'stub-key-context-hold-continuation' && (s.body.state as any)?.previous_request).at(-1)
+      return [
+        ...expectIf(run.records.length === 2, 'two turns completed in one Claude process'),
+        ...expectIf(run.records[0]?.reason === 'insufficient context' && run.records[0]?.context_held === true && run.records[0]?.sent === 'xhigh',
+          'the first turn was held at the session effort'),
+        ...expectIf((followUp?.body.state as any)?.task_context?.previousTask?.level === 'low',
+          `the follow-up's previous task carried the assessed low (was ${JSON.stringify((followUp?.body.state as any)?.task_context?.previousTask?.level)})`),
+        ...expectIf(run.records[1]?.continuation === true && run.records[1]?.context_sufficient === true && run.records[1]?.steps?.every((s: any) => s.sent === 'low'),
+          `the continuation with its own context ran at low (sent ${JSON.stringify(run.records[1]?.steps?.map((s: any) => s.sent))})`),
+        ...expectSentMatchesTranscript(run),
+      ]
+    },
   },
   'real-notification-lookalike': {
     prompt: 'Think hard: design a lock-free multi-producer single-consumer queue with safe memory reclamation. Give only a two-sentence initial plan; leave the linearizability argument unfinished for my next message. Do not use tools.',

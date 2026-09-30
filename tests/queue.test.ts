@@ -411,3 +411,25 @@ describe('batch helpers', () => {
     expect(enteredOf([{ text: 'hard' }], ['hard', 'simple\nextra context'], 'simple')).toBeUndefined()
   })
 })
+
+describe('a batch under a context hold', () => {
+  test('an earlier prompt\'s verdict still sets the floor its continuation starts from', async ($, on) => {
+    // Posts: the essay, the two mid-turn verdicts, the batch (held: missing target), then the continuation.
+    const w = world(on, { answerOf: request => (request === HARD ? { high: 1 } : LOW),
+      contexts: ['sufficient', 'sufficient', 'sufficient', 'missing_target', 'missing_target', 'sufficient'] })
+    on('prompt.submit', ($, e) => ({ text: e.text }))
+    await essayThen($, async () => {
+      await typed($, w, HARD, 'essay', true)
+      await typed($, w, SIMPLE, 'essay', true)
+    })
+    w.transcript.rows = [{ role: 'assistant', text: 'The essay.' }, { role: 'user', text: HARD }, { role: 'user', text: SIMPLE }]
+    await $.turn.start({ text: SIMPLE, turnId: 'batch' })
+    await step($, 'batch', 0)
+    await complete($, 'batch')
+    expect(w.records()[1]).toMatchObject({ reason: 'insufficient context', batch: { count: 2, confirmed: true } })
+    await $.turn.start({ text: 'Continue.', turnId: 'next' })
+    await step($, 'next', 0)
+    await complete($, 'next')
+    expect(w.sent).toEqual(['low', 'xhigh', 'high'])
+  })
+})

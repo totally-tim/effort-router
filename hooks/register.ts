@@ -110,6 +110,8 @@ type Verdict = {
   latencyMs?: number
   contextSufficient?: boolean
   contextHeld?: boolean
+  /** The level without the context hold; see `routeOf`. */
+  unheld?: Level
   missing?: string[]
   continuation?: boolean
   /** The classifier gave no answer: `paused` sent no request. */
@@ -156,6 +158,10 @@ type Turn = {
   contextHeld?: boolean
   /** The highest level a sufficient-context decision chose in this turn; releasing a hold never goes below it. */
   assessedFloor?: Level
+  /** The highest level the classifier's answers in this turn assessed, before any context hold. */
+  assessed?: Level
+  /** The turn's level is the effort a context hold kept, not an assessment: its task passes on `assessed` instead. */
+  keptByHold?: true
   missing?: string[]
   continuation?: boolean
   evidenceVersion: number
@@ -1349,6 +1355,9 @@ export function register(on: On, options: PluginOptions): void {
     // until a typed turn completes, turns keep at least the session's effort.
     // Likewise while a takeover of the held memory is pending: it can be stale.
     const holding = lineage?.diverged ? 'held: resumed memory diverged' : unresolved || stale ? 'held: memory takeover pending' : undefined
+    turn.assessed = verdict.unheld
+    // A decision on memory that can be stale passes on the effort it kept.
+    turn.keptByHold = verdict.contextHeld === true && !holding ? true : undefined
     const held = holding && !turn.manual && isLevel(turn.stepZeroEffort) ? clamp(turn.stepZeroEffort, config.floor, config.ceiling) : undefined
     if (held) {
       if (!turn.base || rankOf(turn.base) < rankOf(held)) {
@@ -1363,6 +1372,8 @@ export function register(on: On, options: PluginOptions): void {
     }
     // A batch does the work of every prompt in it: an earlier prompt's own verdict can raise the turn, never lower it.
     const top = await floor
+    // Also under a hold, which leaves no raise to record: the earlier prompts are part of the task.
+    if (top && turns.get(turn.turnId) === turn) turn.assessed = turn.assessed ? higherOf(turn.assessed, top) : top
     const chosen = levelOf(turn) ?? (isLevel(turn.stepZeroEffort) ? turn.stepZeroEffort : undefined)
     if (top && chosen && rankOf(top) > rankOf(chosen) && turn.batch && turns.get(turn.turnId) === turn) {
       turn.raisedTo = top
@@ -1437,6 +1448,8 @@ export function register(on: On, options: PluginOptions): void {
     turn.reason = reason
     turn.contextSufficient = false
     turn.contextHeld = held && (!turn.evidenceFloor || rankOf(retained) > rankOf(turn.evidenceFloor))
+    // No answer assessed this evidence, so the task passes on the effort kept for it.
+    turn.keptByHold = undefined
     turn.missing = ['unassessed_evidence']
   }
 
@@ -1484,8 +1497,10 @@ export function register(on: On, options: PluginOptions): void {
     const contextHeld = verdict.contextHeld === true && (applied || turn.contextHeld === true)
     // A released hold returns to the turn's earlier sufficient-context decision, never below it.
     const floored = applied && turn.assessedFloor !== undefined && rankOf(turn.assessedFloor) > rankOf(verdict.level)
+    if (verdict.unheld) turn.assessed = turn.assessed ? higherOf(turn.assessed, verdict.unheld) : verdict.unheld
     if (applied) {
       turn.base = floored ? turn.assessedFloor : verdict.level
+      turn.keptByHold = contextHeld && !floored ? true : undefined
     } else {
       turn.base ??= isLevel(turn.stepZeroEffort) ? turn.stepZeroEffort : undefined
     }
@@ -1526,6 +1541,10 @@ export function register(on: On, options: PluginOptions): void {
       } } }], heldEffortOf(turn))
     // A prompt that waited for the turn to end keeps its verdict for the batch it enters.
     if (turns.get(turn.turnId) !== turn) return verdict.level
+    // The message is part of the task, so the level the task passes on counts its assessment;
+    // a message without one leaves the task at the effort kept for it.
+    if (verdict.failed) turn.keptByHold = undefined
+    else if (verdict.unheld) turn.assessed = turn.assessed ? higherOf(turn.assessed, verdict.unheld) : verdict.unheld
     // A successful message assessment permits a retry of the unanswered task on its next request.
     const retries = !verdict.failed && turn.recoverAt !== undefined && !turn.manual
     if (retries) turn.recoverAt = Math.min(turn.recoverAt!, await host.now())
@@ -1583,6 +1602,21 @@ export function register(on: On, options: PluginOptions): void {
     }
 
     return lastLevel && isLevel(baseline) && rankOf(lastLevel) < rankOf(baseline) ? undefined : lastLevel
+  }
+
+  /**
+   * The level a continuation of this turn's task starts from. A context hold
+   * kept effort because the router could not assess the task, so the task
+   * passes on what the classifier did assess, with the turn's raises; a
+   * continuation keeps the hold only when it lacks context too. A turn
+   * without a prompt still inherits `inherited`, the effort the hold kept.
+   */
+  function taskLevelOf(turn: Turn, inherited: Level | undefined): Level | undefined {
+    if (!turn.keptByHold || !turn.assessed || !inherited || unansweredOf(turn) !== undefined) return inherited
+    const assessed = turn.assessedFloor ? higherOf(turn.assessed, turn.assessedFloor) : turn.assessed
+    const raised = raisedBy(turn.raisedTo ? higherOf(turn.raisedTo, assessed) : assessed, escalationOf(turn.errors), config.ceiling)
+
+    return rankOf(raised) < rankOf(inherited) ? raised : inherited
   }
 
   function turnOf(turnId: string): Turn {
@@ -1935,9 +1969,11 @@ export function register(on: On, options: PluginOptions): void {
 
     if (turn && turn.steps.length > 0) {
       const pending = [turn.decided, turn.reconsidered, turn.discovering].filter(Boolean)
+      let isAssessed = true
 
       if (pending.length > 0) {
-        await Promise.race([Promise.all(pending), host.sleep(Math.min(config.timeoutMs + SETTLE_MARGIN_MS, SETTLE_MAX_MS))])
+        isAssessed = await Promise.race([Promise.all(pending).then(() => true, () => true),
+          host.sleep(Math.min(config.timeoutMs + SETTLE_MARGIN_MS, SETTLE_MAX_MS)).then(() => false)])
       }
       if (turns.get(turn.turnId) !== turn) return result
 
@@ -1994,7 +2030,9 @@ export function register(on: On, options: PluginOptions): void {
         // A turn decided on memory that could be stale never lowers the level a merge brought in meanwhile.
         if (turn.memoryHeld && inherited && lastLevel && lastLevel !== turn.memoryHeld.lastLevel) inherited = higherOf(inherited, lastLevel)
         lastLevel = inherited ? clamp(inherited, config.floor, config.ceiling) : undefined
-        memory = afterTask(memory, { request: taskMemoryOf(turn.text, turn.delivered ?? []), answer: e.answer, level: lastLevel,
+        // An assessment still in flight could raise the task: until it lands, the task keeps the effort the hold kept.
+        const task = isAssessed ? taskLevelOf(turn, lastLevel) : lastLevel
+        memory = afterTask(memory, { request: taskMemoryOf(turn.text, turn.delivered ?? []), answer: e.answer, level: task ? clamp(task, config.floor, config.ceiling) : undefined,
           continuation: continuationOf(turn.continuation, turn.text),
           continued: turn.context?.previousTask, observations: turn.context?.observations ?? [],
           turn: { toolErrors: turn.errors, requests: turn.steps.length, interrupted: e.isAborted } })
