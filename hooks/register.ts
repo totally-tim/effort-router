@@ -1,6 +1,7 @@
 import type { EngineInterface, On, PluginOptions, StateRead } from 'claude-code'
 
 import {
+  type Answer,
   Breaker,
   type ClassifyConfig,
   type ClassifyInput,
@@ -19,13 +20,16 @@ import type { Host as EngineHost, SystemOneEnv } from './host'
 import { EMPTY_MEMORY, afterNotification, afterTask, continuationOf, inputOf, type Memory } from './memory'
 import {
   CHOICES,
+  type Candidate,
   type Level,
   type Probabilities,
+  candidateAnswersOf,
   cueFloorOf,
   clamp,
   escalationOf,
   higherOf,
   isLevel,
+  lowerOf,
   raisedBy,
   rankOf,
   routeOf,
@@ -119,6 +123,10 @@ type Verdict = {
   recovery?: true
   /** On a discovery entry: the turn's earlier sufficient-context level, applied instead of this lower answer. */
   assessedFloor?: Level
+  rawContext?: Answer['rawContext']
+  rawRelation?: Answer['rawRelation']
+  /** Levels later policies would pick from the same answer; logged, never sent. */
+  candidates?: Record<Candidate, Level>
 }
 
 type MidTurnRecord = {
@@ -128,6 +136,8 @@ type MidTurnRecord = {
   probabilities?: Probabilities
   latency_ms?: number
   raised: boolean
+  context_answer?: Answer['rawContext']
+  relation_answer?: Answer['rawRelation']
 }
 
 type Turn = {
@@ -189,6 +199,8 @@ type Turn = {
   unclaimed?: string[]
   /** The inherited level when this decision saw unresolved task memory. */
   memoryHeld?: { lastLevel?: Level }
+  /** The first decision, as logged for comparison: its level, the level without a hold, the raw answers and the candidates. */
+  firstDecision?: Pick<Verdict, 'level' | 'unheld' | 'rawContext' | 'rawRelation' | 'candidates'>
 }
 
 /** A turn's data, as one plugin instance hands a running turn to the next after a reload. */
@@ -1181,7 +1193,8 @@ export function register(on: On, options: PluginOptions): void {
    * The level one piece of typed text needs. Never rejects: without an answer
    * the level is the cue's, if any, else unset.
    */
-  async function verdictOf(host: Host, inputs: readonly ClassifyInput[], seen?: Effort): Promise<Verdict> {
+  async function verdictOf(host: Host, inputs: readonly ClassifyInput[], seen?: Effort,
+    { cap, withCandidates = false }: { cap?: Level; withCandidates?: boolean } = {}): Promise<Verdict> {
     const cue = cueFloorOf(inputs[0]?.request ?? '')
 
     // Without a key the router is not set up and changes nothing. A paused or
@@ -1246,8 +1259,18 @@ export function register(on: On, options: PluginOptions): void {
       said.delete('paused')
     }
 
-    const routed = routeOf(result, inputs[0]!, isLevel(seen) ? seen : isLevel(baseline) ? baseline : config.ceiling,
-      config.threshold, config.floor, config.ceiling)
+    const held = isLevel(seen) ? seen : isLevel(baseline) ? baseline : config.ceiling
+    const route = (answer: Answer) => {
+      const routed = routeOf(answer, inputs[0]!, held, config.threshold, config.floor, config.ceiling)
+      // A capped hold keeps the cap, within the assessment and the effort held; it still reports the hold.
+      return cap && routed.contextHeld ? { ...routed, level: clamp(cap, routed.unheld, routed.level) } : routed
+    }
+    const routed = route(result)
+    const alternatives = withCandidates ? candidateAnswersOf(result) : undefined
+    const candidates: Record<Candidate, Level> | undefined = alternatives && {
+      accept_uncertain: route(alternatives.accept_uncertain).level,
+      xhigh_min_mass: route(alternatives.xhigh_min_mass).level,
+    }
 
     return {
       ...routed,
@@ -1256,7 +1279,22 @@ export function register(on: On, options: PluginOptions): void {
       workProbabilities: result.workProbabilities,
       confidence: result.confidence,
       latencyMs: result.latencyMs,
+      rawContext: result.rawContext,
+      rawRelation: result.rawRelation,
+      candidates,
     }
+  }
+
+  /**
+   * The most a context hold may keep for this turn: high for a background
+   * completion the host reported, which passes no level on. Text that only
+   * looks like one, a typed prompt that joined it, task memory that can be
+   * stale or a takeover that may still bring typed prompts, a failed decision
+   * and a level set by hand keep the session's effort.
+   */
+  function holdCapOf(turn: Turn): Level | undefined {
+    const reported = turn.taskNotification === true && turn.startedBy?.origin === NOTIFICATION && !turn.takeoverPending && !isMemoryStale()
+    return reported && !turn.manual && unansweredOf(turn) === undefined ? clamp('high', config.floor, config.ceiling) : undefined
   }
 
   /**
@@ -1335,8 +1373,10 @@ export function register(on: On, options: PluginOptions): void {
       return
     }
 
-    const verdict = await verdictOf(host, inputsOf(turn.text, turn.context), heldEffortOf(turn))
+    const verdict = await verdictOf(host, inputsOf(turn.text, turn.context), heldEffortOf(turn), { cap: holdCapOf(turn), withCandidates: true })
 
+    turn.firstDecision = { level: verdict.level, unheld: verdict.unheld, rawContext: verdict.rawContext,
+      rawRelation: verdict.rawRelation, candidates: verdict.candidates }
     turn.base = verdict.level
     turn.reason = verdict.reason
     turn.cue = verdict.cue
@@ -1432,10 +1472,11 @@ export function register(on: On, options: PluginOptions): void {
     return (await host.now()) + (verdict.failed === 'paused' ? 0 : Math.min(RECOVERY_MS * 2 ** turn.recoveries, MAX_RECOVERY_MS))
   }
 
-  function retainForUnassessedEvidence(turn: Turn, reason: string): void {
+  function retainForUnassessedEvidence(turn: Turn, reason: string, cap?: Level): void {
     if (turn.manual || !turn.context) return
     // Later, unassessed source must not silently keep an earlier low pick.
-    const retained = isLevel(turn.stepZeroEffort) ? turn.stepZeroEffort : config.ceiling
+    const session = isLevel(turn.stepZeroEffort) ? turn.stepZeroEffort : config.ceiling
+    const retained = cap ? lowerOf(session, cap) : session
     const current = levelOf(turn)
     // A failed decision holds nothing a later answer may release; only missing context does.
     const held = turn.contextHeld === true || (current !== undefined && rankOf(retained) > rankOf(current))
@@ -1462,13 +1503,13 @@ export function register(on: On, options: PluginOptions): void {
     if (!isRecovery && version === turn.checkedVersion) return
     if (!isRecovery && turn.discovery.filter(d => !d.recovery).length >= 2) {
       turn.checkedVersion = version
-      retainForUnassessedEvidence(turn, 'discovery budget exhausted')
+      retainForUnassessedEvidence(turn, 'discovery budget exhausted', holdCapOf(turn))
       return
     }
     if (isRecovery) turn.recoveries += 1
     const undecided = turn.recoverAt !== undefined
     const context = boundedContext(turn.context)
-    const verdict: Verdict = { ...await verdictOf(host, inputsOf(turn.text, context, turn.continuation), turn.stepZeroEffort), ...(isRecovery ? { recovery: true as const } : {}) }
+    const verdict: Verdict = { ...await verdictOf(host, inputsOf(turn.text, context, turn.continuation), turn.stepZeroEffort, { cap: holdCapOf(turn) }), ...(isRecovery ? { recovery: true as const } : {}) }
     if (turns.get(turn.turnId) !== turn) return
     if (verdict.failed) {
       if (undecided) {
@@ -1535,6 +1576,7 @@ export function register(on: On, options: PluginOptions): void {
     await turn.decided
     if (turns.get(turn.turnId) !== turn) return undefined
 
+    // No hold cap: a message typed during a background completion is the person's own request.
     const verdict = await verdictOf(host, [{ request: text, previousRequest: turn.text,
       context: { ...turn.context, observations: turn.context?.observations ?? [], previousTask: {
         request: turn.text, level: levelOf(turn), observations: turn.context?.observations ?? [],
@@ -1564,6 +1606,8 @@ export function register(on: On, options: PluginOptions): void {
       // The round trip: in enforce mode the next request waits on it, spending that request's hook budget.
       ...(verdict.latencyMs !== undefined ? { latency_ms: verdict.latencyMs } : {}),
       raised: isRaised,
+      context_answer: verdict.rawContext,
+      relation_answer: verdict.rawRelation,
     })
 
     if (isRaised || retries) {
@@ -1772,7 +1816,7 @@ export function register(on: On, options: PluginOptions): void {
         }
       }
       if (!canWait && turn.evidenceVersion !== turn.checkedVersion) {
-        retainForUnassessedEvidence(turn, 'discovery deferred: hook budget')
+        retainForUnassessedEvidence(turn, 'discovery deferred: hook budget', holdCapOf(turn))
       } else if (!turn.discovering && canWait) {
         turn.discovering = discover(host, turn).catch(() => undefined).finally(() => { turn.discovering = undefined; holdTurn(host, turn) })
       }
@@ -2004,6 +2048,12 @@ export function register(on: On, options: PluginOptions): void {
         context_held: turn.contextHeld,
         assessed_floor: turn.assessedFloor,
         task_notification: turn.taskNotification,
+        origin: turn.startedBy?.origin,
+        decided: turn.firstDecision?.level,
+        unheld: turn.firstDecision?.unheld,
+        context_answer: turn.firstDecision?.rawContext,
+        relation_answer: turn.firstDecision?.rawRelation,
+        candidates: turn.firstDecision?.candidates,
         ...(turn.batch ? { batch: turn.batch } : {}),
         ...(turn.delivered ? { delivered: turn.delivered.map(d => ({ origin: d.origin, text_head: d.text.slice(0, 200) })) } : {}),
         missing_context: turn.missing,

@@ -42,6 +42,8 @@ export type WorldOptions = {
    */
   saved?: Readonly<Record<string, string>>
   contexts?: readonly ('sufficient' | 'missing_target' | 'missing_scope' | 'missing_evidence')[]
+  /** The probability each context answer gives its choice, in step with `contexts`; 1 when absent. */
+  contextProbabilities?: readonly number[]
   relations?: readonly ('new' | 'continuation')[]
   /** Real delays let the native hook budget exercise its deadline. */
   wallDelays?: Readonly<Record<number, number>>
@@ -312,11 +314,12 @@ export function world(on: On, options: WorldOptions = {}): World {
 
     const context = options.contexts?.[Math.min(posts.length, options.contexts.length) - 1] ?? 'sufficient'
     const relation = options.relations?.[Math.min(posts.length, options.relations.length) - 1] ?? 'new'
+    const contextProbability = options.contextProbabilities?.[Math.min(posts.length, options.contextProbabilities.length) - 1] ?? 1
     const text = JSON.stringify({
       model: 'jev-1.13.0',
       answers: {
         effort: { type: 'choice', choice: 'low', probabilities, confidence: 0.5 },
-        context: { type: 'choice', choice: context, probabilities: { [context]: 1 } },
+        context: { type: 'choice', choice: context, probabilities: { [context]: contextProbability } },
         relation: { type: 'choice', choice: relation, probabilities: { [relation]: 1 } },
         work: { type: 'choice', choice: 'mechanical', probabilities: { mechanical: 1 } },
       },
