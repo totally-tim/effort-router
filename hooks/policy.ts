@@ -40,6 +40,10 @@ export function higherOf(a: Level, b: Level): Level {
   return rankOf(a) >= rankOf(b) ? a : b
 }
 
+export function lowerOf(a: Level, b: Level): Level {
+  return rankOf(a) <= rankOf(b) ? a : b
+}
+
 export function clamp(level: Level, floor: Level, ceiling: Level): Level {
   if (rankOf(level) < rankOf(floor)) {
     return floor
@@ -96,6 +100,29 @@ export function raisedBy(level: Level, steps: number, ceiling: Level): Level {
   const raised = LEVELS[Math.min(rankOf(level) + steps, LEVELS.length - 1)]
 
   return clamp(raised ?? level, 'low', higherOf(ceiling, level))
+}
+
+export type Candidate = 'accept_uncertain' | 'xhigh_min_mass'
+
+/** Below this share, the `xhigh_min_mass` candidate cannot pick xhigh. */
+const XHIGH_MIN_MASS = 0.15
+
+/**
+ * Answers that later policies would route on, logged beside the sent level
+ * for comparison and never sent. `accept_uncertain` takes a context answer of
+ * `sufficient` below the 0.8 cutoff; `xhigh_min_mass` also moves an xhigh
+ * share below 15 percent into high, for the effort and work answers alike.
+ */
+export function candidateAnswersOf(answer: Answer): Record<Candidate, Answer> {
+  const accepted = { ...answer, contextSufficient: answer.contextSufficient || answer.context === 'sufficient' }
+  const folded = (p: Probabilities): Probabilities =>
+    (p.xhigh ?? 0) >= XHIGH_MIN_MASS ? p : { ...p, high: (p.high ?? 0) + (p.xhigh ?? 0), xhigh: 0 }
+
+  return {
+    accept_uncertain: accepted,
+    xhigh_min_mass: { ...accepted, probabilities: folded(answer.probabilities),
+      workProbabilities: answer.workProbabilities && folded(answer.workProbabilities) },
+  }
 }
 
 /**

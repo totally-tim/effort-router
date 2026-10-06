@@ -52,7 +52,7 @@ The spinner and completed-turn line show the effort the router sent. Claude's bu
 
 ## How it decides
 
-The router chooses from `low`, `medium`, `high`, and `xhigh`. Missing context prevents it from lowering effort below the session's starting level. An ambiguous prompt such as "how does this work?" needs evidence about the code it refers to.
+The router chooses from `low`, `medium`, `high`, and `xhigh`. Missing context prevents it from lowering effort below the session's starting level. A background completion that Claude Code reports is the exception. Missing context holds it at no more than `high`, because it passes no level on to later tasks. An ambiguous prompt such as "how does this work?" needs evidence about the code it refers to.
 
 Reading code can resolve that uncertainty and allow a lower level before work begins. Once work begins, the router can only raise effort. Task continuations retain the prior task's effort floor. After `router: needs context`, that floor is the classifier's assessment, not the session effort that the router kept. Messages you send during a turn and repeated tool failures can also raise effort.
 

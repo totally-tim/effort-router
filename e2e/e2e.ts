@@ -91,6 +91,10 @@ type Scenario = {
    */
   keyFile?: Record<string, string>
   tools?: string
+  /** Results to wait for after the last prompt's, such as the turn a background completion starts. */
+  extraResults?: number
+  /** Runs only when named, because it depends on when the host delivers a background completion. */
+  optIn?: true
   check: (run: Run) => Finding[]
 }
 
@@ -238,6 +242,8 @@ const stub = Bun.serve({
     const contextRefresh = key === 'stub-key-context-refresh'
     // The first turn lacks context and is held; its follow-up continues it with context of its own.
     const holdContinuation = key === 'stub-key-context-hold-continuation'
+    // A background completion lacks context; the prompt that started the background command has it.
+    const backgroundHold = key === 'stub-key-stub-background-notification' && String((body.state as any)?.request ?? '').startsWith('<task-notification>')
     const followsUp = typeof (body.state as any)?.previous_request === 'string'
     const hasEvidence = Boolean((body.state as any)?.task_context?.observations?.length)
     const partialOutage = key === 'stub-key-context-partial-outage'
@@ -248,7 +254,7 @@ const stub = Bun.serve({
     if (partialOutage && (body.state as any)?.request?.startsWith('Acknowledge gamma') && (body.state as any)?.earlier_exchanges?.length) {
       return Response.json({ detail: 'simulated partial outage' }, { status: 503 })
     }
-    const isEasy = (contextRefresh || holdContinuation || partialOutage || effortTransition || reasoningTransition || JSON.stringify(body.state).includes('echo ready')) &&
+    const isEasy = (contextRefresh || holdContinuation || backgroundHold || partialOutage || effortTransition || reasoningTransition || JSON.stringify(body.state).includes('echo ready')) &&
       !(effortTransition && (body.state as any)?.request?.startsWith('Acknowledge gamma')) &&
       !(reasoningTransition && (body.state as any)?.request?.startsWith('Problem 3.'))
     const probabilities = isEasy
@@ -260,7 +266,7 @@ const stub = Bun.serve({
       answers: {
         effort: { type: 'choice', choice: isEasy ? 'low' : 'xhigh', probabilities, confidence: 0.9 },
         work: { type: 'choice', choice: 'mechanical', probabilities: { mechanical: 1 } },
-        context: (contextRefresh && !hasEvidence) || (holdContinuation && !followsUp)
+        context: (contextRefresh && !hasEvidence) || (holdContinuation && !followsUp) || backgroundHold
           ? { type: 'choice', choice: holdContinuation ? 'missing_target' : 'missing_evidence', probabilities: { [holdContinuation ? 'missing_target' : 'missing_evidence']: 1 } }
           : { type: 'choice', choice: 'sufficient', probabilities: { sufficient: 1 } },
         relation: holdContinuation && followsUp
@@ -397,6 +403,21 @@ const SCENARIOS: Record<string, Scenario> = {
           `the follow-up's previous task carried the assessed low (was ${JSON.stringify((followUp?.body.state as any)?.task_context?.previousTask?.level)})`),
         ...expectIf(run.records[1]?.continuation === true && run.records[1]?.context_sufficient === true && run.records[1]?.steps?.every((s: any) => s.sent === 'low'),
           `the continuation with its own context ran at low (sent ${JSON.stringify(run.records[1]?.steps?.map((s: any) => s.sent))})`),
+        ...expectSentMatchesTranscript(run),
+      ]
+    },
+  },
+  'stub-background-notification': {
+    prompt: 'Use the Bash tool with run_in_background to run `sleep 5; echo ready`, then end your turn with one sentence without waiting for it. When it completes, acknowledge it in one sentence.',
+    effort: 'xhigh', ...stubbed('stub-background-notification', { mode: 'enforce' }), tools: 'Bash(sleep:*),Bash(echo:*)',
+    extraResults: 1, optIn: true, timeoutMs: 180000,
+    check: run => {
+      const notification = run.records.find((r: any) => r.task_notification === true)
+      return [
+        ...expectIf(notification !== undefined, `the host started a turn for the background completion (records ${run.records.length})`),
+        ...expectIf(notification?.origin === 'task-notification', `the host stamped its origin (was ${JSON.stringify(notification?.origin)})`),
+        ...expectIf(notification?.context_held === true && notification?.sent === 'high',
+          `the held completion kept high, not xhigh (sent ${JSON.stringify(notification?.sent)}, held ${JSON.stringify(notification?.context_held)})`),
         ...expectSentMatchesTranscript(run),
       ]
     },
@@ -953,6 +974,7 @@ async function runScenario(name: string, scenario: Scenario): Promise<Outcome> {
   })
 
   const prompts = [scenario.prompt, ...(scenario.followups ?? [])]
+  const expectedResults = prompts.length + (scenario.extraResults ?? 0)
   const outputs: { result?: string; session_id?: string; is_error?: boolean; permission_denials?: unknown[] }[] = []
   let promptIndex = 0, timedOut = false
   const send = () => {
@@ -981,7 +1003,7 @@ async function runScenario(name: string, scenario: Scenario): Promise<Outcome> {
         }
         send()
       }
-      else child.stdin.end()
+      else if (message.is_error || outputs.length >= expectedResults) child.stdin.end()
     }
   }
   const exitCode = await child.exited
@@ -1026,7 +1048,7 @@ async function runScenario(name: string, scenario: Scenario): Promise<Outcome> {
   const routers = [...new Set([...debug.matchAll(/hooks module (effort-router@\S+) loaded/g)].map(m => m[1] as string))]
 
   const findings: Finding[] = [...scenario.check(run), ...expectDiagnosticsMatch(run),
-    ...expectIf(outputs.length === prompts.length, 'every requested turn completed').map(runtime => ({ runtime })),
+    ...expectIf(outputs.length === expectedResults, 'every requested turn completed').map(runtime => ({ runtime })),
     ...expectIf(outputs.every(o => !o.permission_denials?.length), 'the scenario completed without permission denials').map(runtime => ({ runtime })),
     ...expectIf(routers.length === 1 && routers[0] === 'effort-router@inline', `only this folder's router loaded (loaded: ${routers.join(', ') || 'none'})`).map(runtime => ({ runtime }))]
 
@@ -1039,16 +1061,15 @@ async function runScenario(name: string, scenario: Scenario): Promise<Outcome> {
 
 if (LIST) {
   for (const [name, scenario] of Object.entries(SCENARIOS)) {
-    console.log(`${name.padEnd(36)} ${scenario.real ? 'real classifier (TYPESAFE_API_KEY)' : 'stand-in classifier'}`)
+    console.log(`${name.padEnd(36)} ${scenario.real ? 'real classifier (TYPESAFE_API_KEY)' : 'stand-in classifier'}${scenario.optIn ? ', only when named' : ''}`)
   }
   process.exit(0)
 }
 
 const hasKey = Boolean(process.env.TYPESAFE_API_KEY)
-const names = (wanted.length > 0 ? wanted : Object.keys(SCENARIOS)).filter(
-  name => hasKey || !SCENARIOS[name]?.real,
-)
-const skipped = (wanted.length > 0 ? wanted : Object.keys(SCENARIOS))
+const requested = wanted.length > 0 ? wanted : Object.keys(SCENARIOS).filter(name => !SCENARIOS[name]?.optIn)
+const names = requested.filter(name => hasKey || !SCENARIOS[name]?.real)
+const skipped = requested
   .filter(name => !names.includes(name))
   .map(name => ({ name, reason: 'no TYPESAFE_API_KEY: this scenario asks the real classifier' }))
 const unknown = names.filter(name => !SCENARIOS[name])

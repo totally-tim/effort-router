@@ -41,6 +41,9 @@ export type Answer = {
   context: ContextChoice
   contextSufficient: boolean
   relation: 'new' | 'continuation' | 'unknown'
+  /** The context and relation answers as received, before the 0.8 cutoffs: logged so the cutoffs can be evaluated. */
+  rawContext?: { choice?: string; sufficient?: number }
+  rawRelation?: { choice?: string; probability?: number }
 }
 
 export const CONTEXT_CHOICES = ['sufficient', 'missing_target', 'missing_scope', 'missing_evidence'] as const
@@ -222,11 +225,11 @@ export function answerOf(body: string): Answer | undefined {
   const contextAnswer = answers?.context
   const selected = contextAnswer?.choice
   const context: ContextChoice = CONTEXT_CHOICES.includes(selected as ContextChoice) ? selected as ContextChoice : 'missing_evidence'
-  const contextProbability = contextAnswer?.probabilities?.sufficient ?? 0
-  const contextSufficient = context === 'sufficient' && Number.isFinite(contextProbability) && contextProbability >= 0.8 && contextProbability <= 1
+  const contextProbability = finiteOf(contextAnswer?.probabilities?.sufficient)
+  const contextSufficient = context === 'sufficient' && isConfident(contextProbability)
   const relationAnswer = answers?.relation
   const relation = relationAnswer?.choice
-  const relationProbability = relationAnswer?.probabilities?.[relation ?? ''] ?? 0
+  const relationProbability = finiteOf(relationAnswer?.probabilities?.[relation ?? ''])
   const workChoices = ['mechanical', 'bounded', 'dependencies', 'invariants'] as const
   const workAnswer = answers?.work
   const work = workChoices.includes(workAnswer?.choice as typeof workChoices[number])
@@ -234,7 +237,21 @@ export function answerOf(body: string): Answer | undefined {
   const workProbabilities = work && { low: work.mechanical, medium: work.bounded, high: work.dependencies, xhigh: work.invariants }
 
   return { choice, probabilities, workProbabilities, confidence, context, contextSufficient,
-    relation: (relation === 'new' || relation === 'continuation') && Number.isFinite(relationProbability) && relationProbability >= 0.8 && relationProbability <= 1 ? relation : 'unknown' }
+    relation: (relation === 'new' || relation === 'continuation') && isConfident(relationProbability) ? relation : 'unknown',
+    rawContext: contextAnswer && { choice: rawChoiceOf(selected), sufficient: contextProbability },
+    rawRelation: relationAnswer && { choice: rawChoiceOf(relation), probability: relationProbability } }
+}
+
+function isConfident(probability: number | undefined): boolean {
+  return probability !== undefined && probability >= 0.8 && probability <= 1
+}
+
+function rawChoiceOf(choice: unknown): string | undefined {
+  return typeof choice === 'string' ? choice.slice(0, 40) : undefined
+}
+
+function finiteOf(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
 function distributionOf<T extends string>(raw: unknown, choices: readonly T[]): Record<T, number> | undefined {
@@ -372,6 +389,8 @@ export function averageAnswers(answered: readonly Answer[], contextAnswer: Answe
     context: contextAnswer?.context ?? 'missing_evidence',
     contextSufficient: contextAnswer?.contextSufficient ?? false,
     relation: contextAnswer?.relation ?? 'unknown',
+    rawContext: contextAnswer?.rawContext,
+    rawRelation: contextAnswer?.rawRelation,
   }
 }
 

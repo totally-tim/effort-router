@@ -1,11 +1,14 @@
 import { describe, expect, test, tier } from 'claude-code/testing'
 
+import type { Answer } from '../hooks/classify'
 import {
+  candidateAnswersOf,
   clamp,
   cueFloorOf,
   escalationOf,
   pickOf,
   raisedBy,
+  routeOf,
 } from '../hooks/policy'
 
 tier('user')
@@ -55,5 +58,34 @@ describe('policy', () => {
     expect(raisedBy('low', 1, 'xhigh')).toBe('medium')
     expect(raisedBy('high', 2, 'xhigh')).toBe('xhigh')
     expect(raisedBy('xhigh', 1, 'high')).toBe('xhigh')
+  })
+})
+
+describe('candidate policies', () => {
+  const answer = (probabilities: Answer['probabilities'], context: Answer['context'] = 'sufficient', contextSufficient = true): Answer =>
+    ({ choice: 'high', probabilities, workProbabilities: { low: 1 }, confidence: 1, context, contextSufficient, relation: 'new' })
+  const levelOf = (a: Answer, request = 'Explain the design', previousLevel?: 'xhigh') =>
+    routeOf(a, { request, ...(previousLevel ? { continuesTask: true, context: { observations: [], previousTask: { request: 'Design', level: previousLevel, observations: [] } } } : {}) },
+      'xhigh', 0.95, 'low', 'xhigh').level
+
+  test('a small xhigh share stops deciding the level, a larger one still does', () => {
+    const tail = answer({ high: 0.88, xhigh: 0.12 })
+    expect(levelOf(tail)).toBe('xhigh')
+    expect(candidateAnswersOf(tail).xhigh_min_mass.probabilities).toEqual({ high: 1, xhigh: 0 })
+    expect(levelOf(candidateAnswersOf(tail).xhigh_min_mass)).toBe('high')
+    expect(levelOf(candidateAnswersOf(answer({ high: 0.8, xhigh: 0.2 })).xhigh_min_mass)).toBe('xhigh')
+  })
+
+  test('a cue and a continued xhigh task keep xhigh in every candidate', () => {
+    const tail = candidateAnswersOf(answer({ high: 0.88, xhigh: 0.12 })).xhigh_min_mass
+    expect(levelOf(tail, 'Think hard about the design')).toBe('xhigh')
+    expect(levelOf(tail, 'Continue', 'xhigh')).toBe('xhigh')
+  })
+
+  test('accept_uncertain releases only a context answer of sufficient', () => {
+    const uncertain = answer({ low: 1 }, 'sufficient', false)
+    expect(levelOf(uncertain)).toBe('xhigh')
+    expect(levelOf(candidateAnswersOf(uncertain).accept_uncertain)).toBe('low')
+    expect(levelOf(candidateAnswersOf(answer({ low: 1 }, 'missing_scope', false)).accept_uncertain)).toBe('xhigh')
   })
 })

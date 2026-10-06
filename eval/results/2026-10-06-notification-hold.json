@@ -1,0 +1,257 @@
+{
+  "manifest": {
+    "created": "2026-10-06",
+    "window": "2026-09-30 to 2026-10-05, sessions started after each host updated to v0.4.1",
+    "router": "v0.4.1, enforce, session effort xhigh, threshold 0.95, ceiling xhigh",
+    "classifier": "SVPG gateway local-decide (System One)",
+    "judge": "Opus 5.5, blind, eval/labeler-prompt.md; one label per turn; saw the final answer excerpt",
+    "clean_jsonl_sha256": "a6c5fc61b3510904",
+    "scored_json_sha256": "9ff680a8aa942480"
+  },
+  "hosts": {
+    "laptop": {
+      "turns": 377,
+      "sent": {
+        "xhigh": 363,
+        "medium": 8,
+        "high": 6
+      },
+      "sources": {
+        "automated": 39,
+        "background": 160,
+        "typed": 178
+      },
+      "buckets": {
+        "context hold": {
+          "background": 27,
+          "typed": 5
+        },
+        "continuation floor": {
+          "background": 29,
+          "automated": 4,
+          "typed": 54
+        },
+        "discovery budget": {
+          "background": 1,
+          "typed": 3
+        },
+        "downgraded": {
+          "background": 1,
+          "typed": 6
+        },
+        "fallback": {
+          "background": 2,
+          "automated": 3,
+          "typed": 2
+        },
+        "mid-turn": {
+          "typed": 2
+        },
+        "other": {
+          "typed": 6
+        },
+        "xhigh: classifier most likely": {
+          "background": 5,
+          "automated": 24,
+          "typed": 22
+        },
+        "xhigh: threshold tail": {
+          "background": 95,
+          "automated": 8,
+          "typed": 78
+        }
+      },
+      "labeled": 60,
+      "verdicts_as_routed": {
+        "downgraded": {
+          "above": 2,
+          "equal": 3,
+          "below": 2,
+          "n": 7
+        },
+        "xhigh: threshold tail": {
+          "equal": 3,
+          "above": 25,
+          "n": 28
+        },
+        "context hold": {
+          "above": 15,
+          "n": 15
+        },
+        "continuation floor": {
+          "above": 9,
+          "equal": 1,
+          "n": 10
+        }
+      },
+      "notification_turns": 160,
+      "notification_turns_held": 27,
+      "replay": {
+        "current": {
+          "weighted": {
+            "below": 0.008,
+            "equal": 0.075,
+            "above": 0.918
+          },
+          "raw": {
+            "above": 51,
+            "equal": 7,
+            "below": 2
+          },
+          "xhigh_share": 0.978,
+          "levels": {
+            "xhigh": 355,
+            "medium": 5,
+            "high": 3
+          }
+        },
+        "notification_hold_high": {
+          "weighted": {
+            "below": 0.008,
+            "equal": 0.089,
+            "above": 0.903
+          },
+          "raw": {
+            "above": 49,
+            "equal": 9,
+            "below": 2
+          },
+          "xhigh_share": 0.904,
+          "levels": {
+            "xhigh": 328,
+            "high": 30,
+            "medium": 5
+          }
+        },
+        "turns_changed": 27,
+        "labeled_changed": 14,
+        "labeled_changed_below": 0
+      },
+      "replay_reproduces_logged_level": "362/363"
+    },
+    "studio": {
+      "turns": 811,
+      "sent": {
+        "xhigh": 648,
+        "high": 109,
+        "medium": 54
+      },
+      "sources": {
+        "typed": 256,
+        "background": 424,
+        "automated": 131
+      },
+      "buckets": {
+        "context hold": {
+          "background": 85,
+          "automated": 63,
+          "typed": 26
+        },
+        "continuation floor": {
+          "background": 64,
+          "typed": 71
+        },
+        "discovery budget": {
+          "background": 3,
+          "automated": 15,
+          "typed": 7
+        },
+        "downgraded": {
+          "background": 88,
+          "automated": 21,
+          "typed": 47
+        },
+        "fallback": {
+          "background": 4,
+          "automated": 2,
+          "typed": 2
+        },
+        "mid-turn": {
+          "background": 1,
+          "typed": 6
+        },
+        "other": {
+          "background": 5,
+          "automated": 1
+        },
+        "xhigh: classifier most likely": {
+          "background": 9,
+          "automated": 9,
+          "typed": 33
+        },
+        "xhigh: threshold tail": {
+          "background": 165,
+          "automated": 20,
+          "typed": 64
+        }
+      },
+      "labeled": 142,
+      "verdicts_as_routed": {
+        "downgraded": {
+          "equal": 35,
+          "above": 42,
+          "below": 11,
+          "n": 88
+        },
+        "xhigh: threshold tail": {
+          "equal": 9,
+          "above": 21,
+          "n": 30
+        },
+        "context hold": {
+          "above": 15,
+          "n": 15
+        },
+        "continuation floor": {
+          "above": 8,
+          "equal": 1,
+          "n": 9
+        }
+      },
+      "notification_turns": 424,
+      "notification_turns_held": 85,
+      "replay": {
+        "current": {
+          "weighted": {
+            "below": 0.017,
+            "equal": 0.208,
+            "above": 0.775
+          },
+          "raw": {
+            "equal": 48,
+            "above": 87,
+            "below": 7
+          },
+          "xhigh_share": 0.79,
+          "levels": {
+            "high": 111,
+            "medium": 53,
+            "xhigh": 618
+          }
+        },
+        "notification_hold_high": {
+          "weighted": {
+            "below": 0.017,
+            "equal": 0.225,
+            "above": 0.758
+          },
+          "raw": {
+            "equal": 49,
+            "above": 86,
+            "below": 7
+          },
+          "xhigh_share": 0.676,
+          "levels": {
+            "high": 200,
+            "medium": 53,
+            "xhigh": 529
+          }
+        },
+        "turns_changed": 89,
+        "labeled_changed": 9,
+        "labeled_changed_below": 0
+      },
+      "replay_reproduces_logged_level": "749/782"
+    }
+  }
+}

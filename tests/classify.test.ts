@@ -100,6 +100,18 @@ describe('classify', () => {
       workProbabilities: { low: 1, medium: 0, high: 0, xhigh: 0 },
       confidence: 0.54,
       context: 'sufficient', contextSufficient: true, relation: 'new',
+      rawContext: { choice: 'sufficient', sufficient: 1 },
+      rawRelation: { choice: 'new', probability: 1 },
+    })
+  })
+
+  test('the raw context and relation answers are kept, including a choice the router does not know', () => {
+    const body = JSON.parse(ANSWER)
+    body.answers.context = { choice: 'ambiguous', probabilities: { ambiguous: .7 } }
+    body.answers.relation = { choice: 'continuation', probabilities: { continuation: .6 } }
+    expect(answerOf(JSON.stringify(body))).toMatchObject({
+      context: 'missing_evidence', contextSufficient: false, relation: 'unknown',
+      rawContext: { choice: 'ambiguous' }, rawRelation: { choice: 'continuation', probability: .6 },
     })
   })
 
@@ -118,7 +130,8 @@ describe('classify', () => {
         : { choice: 'new', probabilities: { new: 1 } }
       return { status: 200, ok: true, headers: {}, text: JSON.stringify(body) }
     }), CONFIG, 'k', inputVariants(input))
-    expect(result).toMatchObject({ contextSufficient: true, relation: 'continuation', probabilities: { low: 2 / 3, xhigh: 1 / 3 } })
+    expect(result).toMatchObject({ contextSufficient: true, relation: 'continuation', probabilities: { low: 2 / 3, xhigh: 1 / 3 },
+      rawContext: { choice: 'sufficient', sufficient: .85 }, rawRelation: { choice: 'continuation', probability: 1 } })
   })
 
   test('a failed conversation variant fails closed even when other variants answer', async () => {
@@ -135,7 +148,7 @@ describe('classify', () => {
     body.answers.context.probabilities = { sufficient: .79, missing_scope: .21 }
     const result = await classifyAll(hostWith(async () => ({ status: 200, ok: true, headers: {}, text: JSON.stringify(body) })),
       CONFIG, 'k', inputVariants({ request: 'Explain the application' }))
-    expect(result).toMatchObject({ contextSufficient: false })
+    expect(result).toMatchObject({ contextSufficient: false, rawContext: { choice: 'sufficient', sufficient: .79 } })
   })
 
   test('bounded history retains the final pending step and redacts it', () => {

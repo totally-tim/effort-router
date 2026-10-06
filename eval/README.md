@@ -1,5 +1,7 @@
 # Context routing evaluation
 
+Read [the October 6 results](results/2026-10-06-notification-hold.md) for the production audit of both hosts, the notification hold change, and the logged candidate policies. `bun e2e/e2e.ts stub-background-notification` checks that change against a real background completion. It runs only when named.
+
 Read [the September 28 implementation results](results/2026-09-28-implementation.md) for context continuity, outage recovery, lifecycle verification, and the paired historical comparison. [The earlier live Claude results](results/2026-09-27-claude-e2e.md) record the first end-to-end verification. The [earlier context results](results/2026-09-27-context-routing.md) record the initial historical replay.
 
 Run these commands with an installed Bun. They need no Claude generation and install no dependencies.
