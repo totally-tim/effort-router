@@ -95,6 +95,28 @@ describe('retry lifecycle', () => {
     await complete($, 't')
   })
 
+  test('L3c a late answer to the older retry does not replace the build the newer message named', async ($, on) => {
+    const w = world(on, { answers: [503, { after: 2_000, answer: { xhigh: 1 } }, { low: 1 }], models: ['first', 'old-build', 'new-build'] })
+    on('prompt.submit', ($, e) => ({ text: e.text }))
+    on('tool.call', () => ({ result: {}, text: 'ok' }))
+    await $.session.start(STARTED)
+    await command($, 'enforce')
+    await $.turn.start({ text: 'Migrate the services to the new cluster', turnId: 't' })
+    await step($, 't', 0, 'high')
+    await $.tool.call({ tool: 'Bash', command: 'kubectl apply' })
+    await w.clock.advance(61_000)
+    const inFlight = startStep($, 't', 1, 'high')
+    await w.clock.settle()
+    await $.prompt.submit({ text: 'also update the docs', turnId: 't', wait: false, origin: { kind: 'composer' } })
+    await w.clock.settle()
+    expect(await command($, 'status')).toContain('answered by new-build')
+    await w.clock.advance(2_000)
+    await inFlight
+    expect(w.sent, 'the late answer still applies to the turn').toEqual(['high', 'xhigh'])
+    expect(await command($, 'status')).toContain('answered by new-build')
+    await complete($, 't')
+  })
+
   test('L3b health follows the latest request sent: a slower failed retry cannot hide a faster successful message', async ($, on) => {
     const w = world(on, { answers: [503, 'hang', { low: 1 }] })
     on('prompt.submit', ($, e) => ({ text: e.text }))

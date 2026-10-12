@@ -45,6 +45,8 @@ export type WorldOptions = {
   /** The probability each context answer gives its choice, in step with `contexts`; 1 when absent. */
   contextProbabilities?: readonly number[]
   relations?: readonly ('new' | 'continuation')[]
+  /** The build each answer names, by the request it answers; the last repeats. `jev-1.13.0` when absent. */
+  models?: readonly string[]
   /** Real delays let the native hook budget exercise its deadline. */
   wallDelays?: Readonly<Record<number, number>>
   /**
@@ -291,6 +293,7 @@ export function world(on: On, options: WorldOptions = {}): World {
 
   on('http.fetch', async ($, e) => {
     posts.push(e)
+    const model = options.models?.[Math.min(posts.length, options.models.length) - 1] ?? 'jev-1.13.0'
     const wall = options.wallDelays?.[posts.length]
     if (wall) await new Promise<void>(resolve => setTimeout(resolve, wall))
 
@@ -316,7 +319,7 @@ export function world(on: On, options: WorldOptions = {}): World {
     const relation = options.relations?.[Math.min(posts.length, options.relations.length) - 1] ?? 'new'
     const contextProbability = options.contextProbabilities?.[Math.min(posts.length, options.contextProbabilities.length) - 1] ?? 1
     const text = JSON.stringify({
-      model: 'jev-1.13.0',
+      model,
       answers: {
         effort: { type: 'choice', choice: 'low', probabilities, confidence: 0.5 },
         context: { type: 'choice', choice: context, probabilities: { [context]: contextProbability } },
