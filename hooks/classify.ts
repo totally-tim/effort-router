@@ -44,6 +44,11 @@ export type Answer = {
   /** The context and relation answers as received, before the 0.8 cutoffs: logged so the cutoffs can be evaluated. */
   rawContext?: { choice?: string; sufficient?: number }
   rawRelation?: { choice?: string; probability?: number }
+  /**
+   * The response's `model`: the build that answered, which can differ from the
+   * name the request gave (a gateway Tag, or `jev-latest`).
+   */
+  model?: string
 }
 
 export const CONTEXT_CHOICES = ['sufficient', 'missing_target', 'missing_scope', 'missing_evidence'] as const
@@ -235,11 +240,13 @@ export function answerOf(body: string): Answer | undefined {
   const work = workChoices.includes(workAnswer?.choice as typeof workChoices[number])
     ? distributionOf(workAnswer?.probabilities, workChoices) : undefined
   const workProbabilities = work && { low: work.mechanical, medium: work.bounded, high: work.dependencies, xhigh: work.invariants }
+  const model = (parsed as { model?: unknown }).model
 
   return { choice, probabilities, workProbabilities, confidence, context, contextSufficient,
     relation: (relation === 'new' || relation === 'continuation') && isConfident(relationProbability) ? relation : 'unknown',
     rawContext: contextAnswer && { choice: rawChoiceOf(selected), sufficient: contextProbability },
-    rawRelation: relationAnswer && { choice: rawChoiceOf(relation), probability: relationProbability } }
+    rawRelation: relationAnswer && { choice: rawChoiceOf(relation), probability: relationProbability },
+    model: typeof model === 'string' && model.trim() ? model.trim().slice(0, 120) : undefined }
 }
 
 function isConfident(probability: number | undefined): boolean {
@@ -380,6 +387,9 @@ export function averageAnswers(answered: readonly Answer[], contextAnswer: Answe
   const choice = CHOICES.reduce((best, option) =>
     (probabilities[option] ?? 0) > (probabilities[best] ?? 0) ? option : best,
   )
+  // The votes of one decision can come from different builds, as during a
+  // switch or when a flex Tag falls back to its hosted Deployment.
+  const models = [...new Set(answered.flatMap(answer => answer.model ? [answer.model] : []))]
 
   return {
     choice,
@@ -391,6 +401,7 @@ export function averageAnswers(answered: readonly Answer[], contextAnswer: Answe
     relation: contextAnswer?.relation ?? 'unknown',
     rawContext: contextAnswer?.rawContext,
     rawRelation: contextAnswer?.rawRelation,
+    model: models.length > 0 ? models.join(', ') : undefined,
   }
 }
 

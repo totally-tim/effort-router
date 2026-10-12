@@ -233,6 +233,27 @@ describe('register', () => {
     expect(await command($, 'status')).toContain('failing (http 503)')
   })
 
+  test('status and log name the build that answered, which a Tag does not', async ($, on) => {
+    const w = world(on, { answers: [{ low: 1 }, 503], models: ['djev-b50-nvfp4'],
+      env: { TYPESAFE_API_KEY: 'k', TYPESAFE_DEFAULT_MODEL: 'local-decide' } })
+
+    await $.session.start(STARTED)
+    expect(await command($, 'status')).toContain('(asks for local-decide; no answer yet); not asked yet')
+    await $.turn.start({ text: 'push the PR', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    await complete($, 't1')
+
+    expect(JSON.parse(w.posts[0]!.init!.body!).model).toBe('local-decide')
+    expect(w.records()[0]).toMatchObject({ classifier_model: 'djev-b50-nvfp4' })
+    expect(await command($, 'status')).toContain('(asks for local-decide; answered by djev-b50-nvfp4); ok (')
+
+    await $.turn.start({ text: 'refactor the parser', turnId: 't2' })
+    await step($, 't2', 0, 'xhigh')
+    await complete($, 't2')
+    expect(await command($, 'status'), 'a failure keeps the last build that answered')
+      .toContain('(asks for local-decide; answered by djev-b50-nvfp4); failing (http 503)')
+  })
+
   test('shadow says when the classifier gave no answer, too', async ($, on) => {
     const w = world(on, { answers: [503] })
 
@@ -423,7 +444,7 @@ describe('register', () => {
     expect(w.posts[0]?.url).toBe('https://gateway.test/decide/v1/systemone')
     expect(w.posts[0]?.init?.headers?.Authorization).toBe('Bearer gw')
     expect(JSON.parse(String(w.posts[0]?.init?.body))).toMatchObject({ model: 'jev-1.13.0' })
-    expect(await command($, 'status')).toContain('https://gateway.test/decide/v1/systemone (jev-1.13.0)')
+    expect(await command($, 'status')).toContain('https://gateway.test/decide/v1/systemone (asks for jev-1.13.0;')
   })
 
   test('a classifier that keeps failing is said once, when the router pauses', async ($, on) => {

@@ -102,7 +102,29 @@ describe('classify', () => {
       context: 'sufficient', contextSufficient: true, relation: 'new',
       rawContext: { choice: 'sufficient', sufficient: 1 },
       rawRelation: { choice: 'new', probability: 1 },
+      model: 'jev-1.13.0',
     })
+  })
+
+  test('the answer names the build the response names, not the requested name', () => {
+    const body = JSON.parse(ANSWER)
+    body.model = '  djev-run8-run9-blend50-caa15c0b-9a12c814-nvfp4 '
+    expect(answerOf(JSON.stringify(body))?.model).toBe('djev-run8-run9-blend50-caa15c0b-9a12c814-nvfp4')
+    for (const model of [undefined, '', 7]) {
+      body.model = model
+      expect(answerOf(JSON.stringify(body))?.model).toBeUndefined()
+    }
+  })
+
+  test('an ensemble names every build that answered one of its votes', async () => {
+    const inputs = inputVariants({ request: 'Proceed with the change', earlier: [{ request: 'Plan' }],
+      previousTurn: { toolErrors: 0, requests: 1, interrupted: false } })
+    const result = await classifyAll(hostWith(async (_url, init) => {
+      const body = JSON.parse(ANSWER)
+      body.model = JSON.parse(init.body!).state.previous_turn ? 'clef' : 'djev-b50'
+      return { status: 200, ok: true, headers: {}, text: JSON.stringify(body) }
+    }), CONFIG, 'k', inputs)
+    expect(result).toMatchObject({ model: 'djev-b50, clef' })
   })
 
   test('the raw context and relation answers are kept, including a choice the router does not know', () => {

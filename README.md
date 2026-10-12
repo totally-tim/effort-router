@@ -39,7 +39,7 @@ claude plugin update effort-router@effort-router
 
 | Command | What it does |
 |---|---|
-| `/effort-router` | Shows mode, classifier health, last decision, cache counts, and log path |
+| `/effort-router` | Shows mode, classifier health, the model that answered, last decision, cache counts, and log path |
 | `/effort-router why` | Shows the last completed turn's full record |
 | `/effort-router shadow` | Logs recommendations without applying them |
 | `/effort-router enforce` | Applies recommendations |
@@ -69,6 +69,8 @@ Set plugin options in `/config` or `pluginConfigs` in Claude settings. Explicit 
 | `keyFile`, `keyName` | `TYPESAFE_API_KEY` | No key |
 
 A key file can contain a plain token or a JSON object with the field named by `keyName`. Compatible classifiers must implement `POST /v1/systemone`.
+
+`model` is the name each request asks for. A gateway can answer with a different build, such as the one behind a Tag. The status line shows both names. Each decision in the log records the answering build as `classifier_model`.
 
 The default range is `low` through `xhigh`, with a five-second classifier timeout. See the [plugin manifest](.claude-plugin/plugin.json) for all options and defaults.
 

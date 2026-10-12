@@ -125,6 +125,8 @@ type Verdict = {
   assessedFloor?: Level
   rawContext?: Answer['rawContext']
   rawRelation?: Answer['rawRelation']
+  /** The build that answered, as the response names it. */
+  classifierModel?: string
   /** Levels later policies would pick from the same answer; logged, never sent. */
   candidates?: Record<Candidate, Level>
 }
@@ -138,6 +140,7 @@ type MidTurnRecord = {
   raised: boolean
   context_answer?: Answer['rawContext']
   relation_answer?: Answer['rawRelation']
+  classifier_model?: string
 }
 
 type Turn = {
@@ -199,8 +202,8 @@ type Turn = {
   unclaimed?: string[]
   /** The inherited level when this decision saw unresolved task memory. */
   memoryHeld?: { lastLevel?: Level }
-  /** The first decision, as logged for comparison: its level, the level without a hold, the raw answers and the candidates. */
-  firstDecision?: Pick<Verdict, 'level' | 'unheld' | 'rawContext' | 'rawRelation' | 'candidates'>
+  /** The first decision, as logged for comparison: its level, the level without a hold, the raw answers, the build that gave them and the candidates. */
+  firstDecision?: Pick<Verdict, 'level' | 'unheld' | 'rawContext' | 'rawRelation' | 'classifierModel' | 'candidates'>
 }
 
 /** A turn's data, as one plugin instance hands a running turn to the next after a reload. */
@@ -499,6 +502,8 @@ export function register(on: On, options: PluginOptions): void {
   }
   let health = 'not asked yet'
   let classifierOk = false
+  // The build named by the answer to the newest request that got one, for the status line.
+  let answeredBy: { model: string; requestNo: number } | undefined
   // Each classification request gets the next number, for the process: a
   // session reset or `/clear` keeps counting. A result is stale when a request
   // sent after it already settled the other way. A stale result still answers
@@ -1258,6 +1263,10 @@ export function register(on: On, options: PluginOptions): void {
       // A later outage in this session is announced again.
       said.delete('paused')
     }
+    // A late answer to an older request cannot replace the build a newer one named.
+    if (requestNo > (answeredBy?.requestNo ?? 0)) {
+      answeredBy = { model: result.model ?? 'an unnamed model', requestNo }
+    }
 
     const held = isLevel(seen) ? seen : isLevel(baseline) ? baseline : config.ceiling
     const route = (answer: Answer) => {
@@ -1281,6 +1290,7 @@ export function register(on: On, options: PluginOptions): void {
       latencyMs: result.latencyMs,
       rawContext: result.rawContext,
       rawRelation: result.rawRelation,
+      classifierModel: result.model,
       candidates,
     }
   }
@@ -1376,7 +1386,7 @@ export function register(on: On, options: PluginOptions): void {
     const verdict = await verdictOf(host, inputsOf(turn.text, turn.context), heldEffortOf(turn), { cap: holdCapOf(turn), withCandidates: true })
 
     turn.firstDecision = { level: verdict.level, unheld: verdict.unheld, rawContext: verdict.rawContext,
-      rawRelation: verdict.rawRelation, candidates: verdict.candidates }
+      rawRelation: verdict.rawRelation, classifierModel: verdict.classifierModel, candidates: verdict.candidates }
     turn.base = verdict.level
     turn.reason = verdict.reason
     turn.cue = verdict.cue
@@ -1608,6 +1618,7 @@ export function register(on: On, options: PluginOptions): void {
       raised: isRaised,
       context_answer: verdict.rawContext,
       relation_answer: verdict.rawRelation,
+      classifier_model: verdict.classifierModel,
     })
 
     if (isRaised || retries) {
@@ -2053,6 +2064,7 @@ export function register(on: On, options: PluginOptions): void {
         unheld: turn.firstDecision?.unheld,
         context_answer: turn.firstDecision?.rawContext,
         relation_answer: turn.firstDecision?.rawRelation,
+        classifier_model: turn.firstDecision?.classifierModel,
         candidates: turn.firstDecision?.candidates,
         ...(turn.batch ? { batch: turn.batch } : {}),
         ...(turn.delivered ? { delivered: turn.delivered.map(d => ({ origin: d.origin, text_head: d.text.slice(0, 200) })) } : {}),
@@ -2175,7 +2187,7 @@ export function register(on: On, options: PluginOptions): void {
     return {
       text: [
         `mode ${mode}; range ${config.floor}-${config.ceiling}; threshold ${config.threshold}; ensemble ${config.ensemble ? 'on' : 'off'}`,
-        `classifier: ${classifier.url} (${classifier.model}); ${health}${pausedMs > 0 ? `; paused ${Math.ceil(pausedMs / 1000)} s more` : ''}`,
+        `classifier: ${classifier.url} (asks for ${classifier.model}; ${answeredBy ? `answered by ${answeredBy.model}` : 'no answer yet'}); ${health}${pausedMs > 0 ? `; paused ${Math.ceil(pausedMs / 1000)} s more` : ''}`,
         `key: ${keyProblem ? `${keyProblem}${keyDetail ? ` (${keyDetail})` : ''}` : 'loaded'}`,
         ...(unanswered ? [unanswered] : []),
         last,
