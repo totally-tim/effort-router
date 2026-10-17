@@ -2,13 +2,13 @@ import { describe, expect, test, tier } from 'claude-code/testing'
 
 import type { Answer } from '../hooks/classify'
 import {
-  candidateAnswersOf,
   clamp,
   cueFloorOf,
   escalationOf,
   pickOf,
   raisedBy,
   routeOf,
+  ruledAnswerOf,
 } from '../hooks/policy'
 
 tier('user')
@@ -61,31 +61,44 @@ describe('policy', () => {
   })
 })
 
-describe('candidate policies', () => {
-  const answer = (probabilities: Answer['probabilities'], context: Answer['context'] = 'sufficient', contextSufficient = true): Answer =>
-    ({ choice: 'high', probabilities, workProbabilities: { low: 1 }, confidence: 1, context, contextSufficient, relation: 'new' })
-  const levelOf = (a: Answer, request = 'Explain the design', previousLevel?: 'xhigh') =>
+describe('the ruled answer', () => {
+  const answer = (probabilities: Answer['probabilities'], context: Answer['context'] = 'sufficient', contextSufficient = true,
+    workProbabilities: Answer['workProbabilities'] = { low: 1 }): Answer =>
+    ({ choice: 'high', probabilities, workProbabilities, confidence: 1, context, contextSufficient, relation: 'new' })
+  const levelOf = (a: Answer, { request = 'Explain the design', previousLevel, strict }: { request?: string; previousLevel?: 'xhigh'; strict?: boolean } = {}) =>
     routeOf(a, { request, ...(previousLevel ? { continuesTask: true, context: { observations: [], previousTask: { request: 'Design', level: previousLevel, observations: [] } } } : {}) },
-      'xhigh', 0.95, 'low', 'xhigh').level
+      'xhigh', 0.95, 'low', 'xhigh', strict).level
 
-  test('a small xhigh share stops deciding the level, a larger one still does', () => {
+  test('an xhigh share below 15 percent counts as high, a larger one still picks xhigh', () => {
     const tail = answer({ high: 0.88, xhigh: 0.12 })
-    expect(levelOf(tail)).toBe('xhigh')
-    expect(candidateAnswersOf(tail).xhigh_min_mass.probabilities).toEqual({ high: 1, xhigh: 0 })
-    expect(levelOf(candidateAnswersOf(tail).xhigh_min_mass)).toBe('high')
-    expect(levelOf(candidateAnswersOf(answer({ high: 0.8, xhigh: 0.2 })).xhigh_min_mass)).toBe('xhigh')
+    expect(ruledAnswerOf(tail).probabilities).toEqual({ high: 1, xhigh: 0 })
+    expect(levelOf(tail)).toBe('high')
+    expect(levelOf(tail, { strict: true })).toBe('xhigh')
+    expect(levelOf(answer({ high: 0.8, xhigh: 0.2 }))).toBe('xhigh')
   })
 
-  test('a cue and a continued xhigh task keep xhigh in every candidate', () => {
-    const tail = candidateAnswersOf(answer({ high: 0.88, xhigh: 0.12 })).xhigh_min_mass
-    expect(levelOf(tail, 'Think hard about the design')).toBe('xhigh')
-    expect(levelOf(tail, 'Continue', 'xhigh')).toBe('xhigh')
+  test('the work answer moves its small xhigh share too', () => {
+    const work = answer({ low: 1 }, 'sufficient', true, { medium: 0.9, xhigh: 0.1 })
+    expect(levelOf(work)).toBe('high')
+    expect(levelOf(work, { strict: true })).toBe('xhigh')
   })
 
-  test('accept_uncertain releases only a context answer of sufficient', () => {
+  test('the answer as received stays unchanged', () => {
+    const tail = answer({ high: 0.88, xhigh: 0.12 }, 'sufficient', false)
+    ruledAnswerOf(tail)
+    expect(tail).toMatchObject({ probabilities: { high: 0.88, xhigh: 0.12 }, workProbabilities: { low: 1 }, contextSufficient: false })
+  })
+
+  test('a cue and a continued xhigh task keep xhigh', () => {
+    const tail = answer({ high: 0.88, xhigh: 0.12 })
+    expect(levelOf(tail, { request: 'Think hard about the design' })).toBe('xhigh')
+    expect(levelOf(tail, { request: 'Continue', previousLevel: 'xhigh' })).toBe('xhigh')
+  })
+
+  test('a context answer of sufficient counts below the cutoff; a missing one still holds', () => {
     const uncertain = answer({ low: 1 }, 'sufficient', false)
-    expect(levelOf(uncertain)).toBe('xhigh')
-    expect(levelOf(candidateAnswersOf(uncertain).accept_uncertain)).toBe('low')
-    expect(levelOf(candidateAnswersOf(answer({ low: 1 }, 'missing_scope', false)).accept_uncertain)).toBe('xhigh')
+    expect(routeOf(uncertain, { request: 'Explain the design' }, 'xhigh', 0.95, 'low', 'xhigh')).toMatchObject({ level: 'low', contextSufficient: true, contextHeld: false })
+    expect(levelOf(uncertain, { strict: true })).toBe('xhigh')
+    expect(levelOf(answer({ low: 1 }, 'missing_scope', false))).toBe('xhigh')
   })
 })

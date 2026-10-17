@@ -23,7 +23,6 @@ import {
   type Candidate,
   type Level,
   type Probabilities,
-  candidateAnswersOf,
   cueFloorOf,
   clamp,
   escalationOf,
@@ -127,7 +126,7 @@ type Verdict = {
   rawRelation?: Answer['rawRelation']
   /** The build that answered, as the response names it. */
   classifierModel?: string
-  /** Levels later policies would pick from the same answer; logged, never sent. */
+  /** Levels other rules would pick from the same answer; logged, never sent. */
   candidates?: Record<Candidate, Level>
 }
 
@@ -1269,17 +1268,13 @@ export function register(on: On, options: PluginOptions): void {
     }
 
     const held = isLevel(seen) ? seen : isLevel(baseline) ? baseline : config.ceiling
-    const route = (answer: Answer) => {
-      const routed = routeOf(answer, inputs[0]!, held, config.threshold, config.floor, config.ceiling)
+    const route = (strict?: boolean) => {
+      const routed = routeOf(result, inputs[0]!, held, config.threshold, config.floor, config.ceiling, strict)
       // A capped hold keeps the cap, within the assessment and the effort held; it still reports the hold.
       return cap && routed.contextHeld ? { ...routed, level: clamp(cap, routed.unheld, routed.level) } : routed
     }
-    const routed = route(result)
-    const alternatives = withCandidates ? candidateAnswersOf(result) : undefined
-    const candidates: Record<Candidate, Level> | undefined = alternatives && {
-      accept_uncertain: route(alternatives.accept_uncertain).level,
-      xhigh_min_mass: route(alternatives.xhigh_min_mass).level,
-    }
+    const routed = route()
+    const candidates: Record<Candidate, Level> | undefined = withCandidates ? { strict: route(true).level } : undefined
 
     return {
       ...routed,

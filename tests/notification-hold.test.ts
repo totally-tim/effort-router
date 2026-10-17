@@ -249,28 +249,36 @@ describe('queued prompts and background completions', () => {
   })
 })
 
-describe('shadow candidates', () => {
-  test('a typed turn logs what later policies would pick, and sends what this one picks', async ($, on) => {
+describe('the strict candidate', () => {
+  test('a context answer of sufficient below the cutoff lowers the turn; the log keeps the strict level and the raw answer', async ($, on) => {
     const w = world(on, { answers: [{ low: 1 }], contexts: ['sufficient'], contextProbabilities: [0.6] })
     await $.session.start(STARTED)
     await command($, 'enforce')
     await $.turn.start({ text: 'Explain the application', turnId: 't1' })
     await step($, 't1', 0)
     await complete($, 't1')
-    expect(w.sent).toEqual(['xhigh'])
-    expect(w.records()[0]).toMatchObject({ decided: 'xhigh', unheld: 'low', missing_context: ['uncertain_context'],
+    expect(w.sent).toEqual(['low'])
+    expect(w.records()[0]).toMatchObject({ decided: 'low', unheld: 'low', context_sufficient: true, context_held: false, missing_context: [],
       context_answer: { choice: 'sufficient', sufficient: 0.6 }, relation_answer: { choice: 'new', probability: 1 },
-      candidates: { accept_uncertain: 'low', xhigh_min_mass: 'low' } })
+      candidates: { strict: 'xhigh' } })
   })
 
-  test('a small xhigh share shows as a lower candidate only', async ($, on) => {
+  test('a small xhigh share sends high; the log keeps the strict level and the raw probabilities', async ($, on) => {
     const w = world(on, { answers: [{ high: 0.88, xhigh: 0.12 }], contexts: ['sufficient'] })
     await $.session.start(STARTED)
     await command($, 'enforce')
     await $.turn.start({ text: 'Explain the application', turnId: 't1' })
     await step($, 't1', 0)
     await complete($, 't1')
-    expect(w.sent).toEqual(['xhigh'])
-    expect(w.records()[0]).toMatchObject({ candidates: { accept_uncertain: 'xhigh', xhigh_min_mass: 'high' } })
+    expect(w.sent).toEqual(['high'])
+    expect(w.records()[0]).toMatchObject({ decided: 'high', probabilities: { high: 0.88, xhigh: 0.12 }, candidates: { strict: 'xhigh' } })
+  })
+
+  test('discovery releases a typed hold on a context answer of sufficient below the cutoff', async ($, on) => {
+    const w = await notified($, on, { answers: [{ low: 1 }], contexts: ['missing_scope', 'sufficient'], contextProbabilities: [1, 0.6] },
+      'composer', 'Explain the application')
+    await reads($, w, 1)
+    await complete($, 'n')
+    expect(w.sent).toEqual(['xhigh', 'low'])
   })
 })
