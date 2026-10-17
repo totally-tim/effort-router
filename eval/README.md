@@ -89,3 +89,13 @@ bun eval/hold-chain.ts report --out ~/.local/state/effort-router/hold-chain
 ```
 
 `label` asks the independent judge of `replay.ts label` about the tasks whose level differs between the arms. Inputs, answers and labels stay under `--out` with mode 600.
+
+## Levels per policy in the decision logs
+
+`levels.ts` reads the decision logs and prints the share of turns at each level, as sent and under each logged candidate, overall and by origin. A candidate replaces only a first decision that set the turn's first request. A failed decision counts at the level sent. The replay keeps the continuation floors that the logged rule passed on, and it does not replay discovery or later requests. For a candidate that lowers levels, it is therefore an upper bound. It prints counts only.
+
+```sh
+bun eval/levels.ts --days 30
+```
+
+v0.4.2 and v0.4.3 log the `accept_uncertain` and `xhigh_min_mass` candidates. From v0.4.4 the router sends `xhigh_min_mass`, and the log keeps the earlier rule as `strict`.

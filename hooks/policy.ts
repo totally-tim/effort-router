@@ -102,37 +102,40 @@ export function raisedBy(level: Level, steps: number, ceiling: Level): Level {
   return clamp(raised ?? level, 'low', higherOf(ceiling, level))
 }
 
-export type Candidate = 'accept_uncertain' | 'xhigh_min_mass'
+/**
+ * Rules the log records beside the sent level for comparison, never sent.
+ * `strict` is the rule through v0.4.3: see `routeOf`.
+ */
+export type Candidate = 'strict'
 
-/** Below this share, the `xhigh_min_mass` candidate cannot pick xhigh. */
+/** Below this share, xhigh cannot decide the level. */
 const XHIGH_MIN_MASS = 0.15
 
 /**
- * Answers that later policies would route on, logged beside the sent level
- * for comparison and never sent. `accept_uncertain` takes a context answer of
- * `sufficient` below the 0.8 cutoff; `xhigh_min_mass` also moves an xhigh
- * share below 15 percent into high, for the effort and work answers alike.
+ * The answer the router acts on. A context answer of `sufficient` counts even
+ * below the 0.8 cutoff, and an xhigh share below 15 percent moves into high,
+ * for the effort and work answers alike. Without the move, the 0.95 threshold
+ * picked xhigh for any xhigh share above 5 percent. v0.4.2 and v0.4.3 logged
+ * this rule as the `xhigh_min_mass` candidate.
  */
-export function candidateAnswersOf(answer: Answer): Record<Candidate, Answer> {
-  const accepted = { ...answer, contextSufficient: answer.contextSufficient || answer.context === 'sufficient' }
+export function ruledAnswerOf(answer: Answer): Answer {
   const folded = (p: Probabilities): Probabilities =>
     (p.xhigh ?? 0) >= XHIGH_MIN_MASS ? p : { ...p, high: (p.high ?? 0) + (p.xhigh ?? 0), xhigh: 0 }
 
-  return {
-    accept_uncertain: accepted,
-    xhigh_min_mass: { ...accepted, probabilities: folded(answer.probabilities),
-      workProbabilities: answer.workProbabilities && folded(answer.workProbabilities) },
-  }
+  return { ...answer, contextSufficient: answer.contextSufficient || answer.context === 'sufficient',
+    probabilities: folded(answer.probabilities), workProbabilities: answer.workProbabilities && folded(answer.workProbabilities) }
 }
 
 /**
  * Shared by replay and live routing; confidence cannot replace absent evidence.
  * `unheld` is the level without the context hold: the assessment a held task
  * passes on to its continuation, which must establish its own context to go lower.
+ * `strict` routes the answer as received, without `ruledAnswerOf`: the rule through v0.4.3.
  */
-export function routeOf(answer: Answer, input: ClassifyInput, baseline: Level, threshold: number, floor: Level, ceiling: Level): {
+export function routeOf(received: Answer, input: ClassifyInput, baseline: Level, threshold: number, floor: Level, ceiling: Level, strict = false): {
   level: Level; unheld: Level; workLevel?: Level; evidenceFloor?: Level; reason: string; contextSufficient: boolean; contextHeld: boolean; missing: string[]; continuation: boolean
 } {
+  const answer = strict ? received : ruledAnswerOf(received)
   const continuation = input.continuesTask === true || isContinuation(input.request) || answer.relation === 'continuation'
   const previous = continuation ? input.context?.previousTask : undefined
   const observations = [...(input.context?.observations ?? []), ...(previous?.observations ?? [])]
