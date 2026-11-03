@@ -62,7 +62,7 @@ Each sample has a `provenance` record of what replay cannot know. `unknown` list
 
 The transcript records no reliable marker for an in-process `/resume` or a new-process `--resume`, so replay keeps the preceding task memory. The live router restores bounded memory from checkpoints when the saved histories agree. Native lifecycle tests check that behavior, including ambiguous branches; historical replay cannot reproduce it. Replay also has no historical repository description, and its discovery arm omits the continuation that the live decision established.
 
-`routingVersion` hashes every file under `hooks/`, so a change to `register.ts` or a new module changes every score fingerprint. `extract` admits interactive (`cli`) rows by default. Pass `{ entrypoints: ['sdk-cli'] }` for headless transcripts.
+`routingVersion` hashes every file under `hooks/`, so a change to `register.ts` or a new module changes every score fingerprint. `extract` admits interactive (`cli`) rows by default. It also admits the `sdk-ts` rows of a chat that Orca opened, when the session's decision log marks its turns `orca_chat`; the transcript records nothing of Orca. `effort-eval.ts` counts the same rows. Pass `{ entrypoints: ['sdk-cli'] }` for headless transcripts, and `logDir` when the decision logs are elsewhere.
 
 ## Paired comparison of two trees
 

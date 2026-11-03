@@ -628,6 +628,35 @@ describe('register', () => {
     expect(w.records()).toHaveLength(0)
   })
 
+  test("Orca's chat is routed without the headless option", async ($, on) => {
+    const w = world(on, { env: { TYPESAFE_API_KEY: 'k', ORCA_STRUCTURED_SESSION: '1' } })
+
+    await $.session.start({ ...STARTED, isInteractive: false, surface: null })
+    await command($, 'enforce')
+    await $.turn.start({ text: 'push the PR', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    await complete($, 't1')
+
+    expect(w.sent).toEqual(['low'])
+    expect(w.records().map(record => record.orca_chat)).toEqual([true])
+  })
+
+  test("a Claude that Orca's chat starts keeps its effort", async ($, on) => {
+    const w = world(on, {
+      env: { TYPESAFE_API_KEY: 'k', ORCA_STRUCTURED_SESSION: '1', CLAUDE_CODE_CHILD_SESSION: '1' },
+    })
+
+    await $.session.start({ ...STARTED, isInteractive: false, surface: null })
+    await command($, 'enforce')
+    await $.turn.start({ text: 'push the PR', turnId: 't1' })
+    await step($, 't1', 0, 'xhigh')
+    await complete($, 't1')
+
+    expect(w.sent).toEqual(['xhigh'])
+    expect(w.posts).toHaveLength(0)
+    expect(w.records()).toHaveLength(0)
+  })
+
   test('without a key even a deep-reasoning phrase changes nothing', async ($, on) => {
     const w = world(on, { env: {} })
 

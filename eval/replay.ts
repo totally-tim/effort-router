@@ -11,6 +11,7 @@ import { addObservation, boundedContext, excerpt, isTaskNotification, observatio
 import { EMPTY_MEMORY, afterNotification, afterTask, continuationOf, inputOf, type Memory } from '../hooks/memory'
 import { isLevel, pickOf, rankOf, routeOf, type Level } from '../hooks/policy'
 import { pairs } from './pairs'
+import { entrypointsOf } from './sessions'
 
 const args = process.argv.slice(2)
 const option = (name: string, fallback: string) => args.includes(`--${name}`) ? args[args.indexOf(`--${name}`) + 1]! : fallback
@@ -90,11 +91,11 @@ const CODEX_NOTIFICATION = /^\s*<subagent_notification>/
  * the live router's own functions from what the transcript shows reached the model; see `Provenance` for what
  * it cannot show.
  */
-export async function extract(path: string, source: Sample['source'], options: { entrypoints?: readonly string[]; fs?: ProjectFs } = {}): Promise<Sample[]> {
+export async function extract(path: string, source: Sample['source'], options: { entrypoints?: readonly string[]; fs?: ProjectFs; logDir?: string } = {}): Promise<Sample[]> {
   const rows = lines(path)
   if (source === 'codex' && rows.some(r => r.type === 'session_meta' && (r.payload.parent_thread_id || r.payload.source?.subagent))) return []
   const session = path.split('/').pop()!.replace('.jsonl', '')
-  const entrypoints = options.entrypoints ?? ['cli'], fs = options.fs ?? diskFs
+  const entrypoints = options.entrypoints ?? entrypointsOf(session, options.logDir), fs = options.fs ?? diskFs
   const identityOf = async (dir: string) => await fs.exists(dir).catch(() => false) ? projectOf(dir, fs) : undefined
   type Turn = {
     request: string; notification: boolean; sample?: Sample; continued?: Task; delivered: Entered[]; observed: Observation[]

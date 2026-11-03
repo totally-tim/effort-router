@@ -288,12 +288,13 @@ const hanging = Bun.serve({ port: 0, fetch: () => new Promise<Response>(() => un
 
 /**
  * The stand-in as the classifier, through the options, with a key of the
- * scenario's own so its requests can be told apart.
+ * scenario's own so its requests can be told apart. `env` adds to or removes
+ * from the runner's environment.
  */
-function stubbed(name: string, options: Options = {}): Pick<Scenario, 'options' | 'env'> {
+function stubbed(name: string, options: Options = {}, env: Scenario['env'] = {}): Pick<Scenario, 'options' | 'env'> {
   return {
     options: { baseUrl: STUB, ...options },
-    env: { TYPESAFE_API_KEY: `stub-key-${name}`, TYPESAFE_BASE_URL: undefined, TYPESAFE_DEFAULT_MODEL: undefined },
+    env: { TYPESAFE_API_KEY: `stub-key-${name}`, TYPESAFE_BASE_URL: undefined, TYPESAFE_DEFAULT_MODEL: undefined, ...env },
   }
 }
 
@@ -666,7 +667,28 @@ const SCENARIOS: Record<string, Scenario> = {
   'headless-default': {
     prompt: MECHANICAL,
     effort: 'xhigh',
-    ...stubbed('headless', { mode: 'enforce', headless: false }),
+    ...stubbed('headless', { mode: 'enforce', headless: false }, { ORCA_STRUCTURED_SESSION: undefined }),
+    check: run => [
+      ...expectIf(run.records.length === 0, `no decision records (${run.records.length})`),
+      ...expectIf(run.seen.length === 0, `the classifier was not asked (${run.seen.length})`),
+      ...expectIf(run.main.every(step => step.effort === 'xhigh'), 'every request kept the session effort'),
+    ],
+  },
+  // Orca's chat runs Claude as a stream-json session of the TypeScript SDK.
+  'orca-chat': {
+    prompt: MECHANICAL,
+    effort: 'xhigh',
+    ...stubbed('orca-chat', { mode: 'enforce', headless: false }, { ORCA_STRUCTURED_SESSION: '1', CLAUDE_CODE_CHILD_SESSION: undefined, CLAUDE_CODE_ENTRYPOINT: 'sdk-ts' }),
+    check: run => [
+      ...expectTurn(run, { mode: 'enforce', reason: 'classifier', sent: 'low', orca_chat: true }),
+      ...expectSentMatchesTranscript(run),
+    ],
+  },
+  // A `claude -p` that Orca's chat starts inherits its variable and entrypoint.
+  'orca-chat-child': {
+    prompt: MECHANICAL,
+    effort: 'xhigh',
+    ...stubbed('orca-chat-child', { mode: 'enforce', headless: false }, { ORCA_STRUCTURED_SESSION: '1', CLAUDE_CODE_CHILD_SESSION: '1', CLAUDE_CODE_ENTRYPOINT: 'sdk-ts' }),
     check: run => [
       ...expectIf(run.records.length === 0, `no decision records (${run.records.length})`),
       ...expectIf(run.seen.length === 0, `the classifier was not asked (${run.seen.length})`),

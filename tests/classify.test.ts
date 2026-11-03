@@ -35,6 +35,7 @@ function hostWith(fetch: Host['fetch']): Host {
     stat: async () => { throw Error('ENOENT') },
     home: async () => '/Users/t',
     systemOneEnv: async () => ({}),
+    isOrcaChat: async () => false,
     savedEffort: async () => undefined,
     sessionId: async () => 'session',
     promptsSinceAnswer: async () => [],
