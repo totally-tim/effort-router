@@ -345,6 +345,8 @@ function hostOf($: EngineInterface): Host {
       baseUrl: (await $.env.get('TYPESAFE_BASE_URL')) || undefined,
       model: (await $.env.get('TYPESAFE_DEFAULT_MODEL')) || undefined,
     }),
+    isOrcaChat: async () =>
+      (await $.env.get('ORCA_STRUCTURED_SESSION')) === '1' && !(await $.env.get('CLAUDE_CODE_CHILD_SESSION')),
     savedEffort: async model => {
       const settings = await $.settings.read()
       const perModel = settings.modelSettings as Record<string, { effortLevel?: unknown }> | undefined
@@ -459,6 +461,8 @@ export function register(on: On, options: PluginOptions): void {
   let projectRoot: string | undefined
   let project: string | undefined
   let isInteractive: boolean | undefined
+  // Orca's chat made this session interactive; each turn record says so for the eval.
+  let isOrcaChat = false
   // Cache outcomes of main-conversation requests across turns: a diagnostic of
   // reported usage, scoped to this load of the plugin and one conversation.
   const cache = new CacheTracker()
@@ -494,7 +498,9 @@ export function register(on: On, options: PluginOptions): void {
   /**
    * Whether the router acts in this session. Headless sessions (`claude -p`,
    * the SDKs) run prompts that tools wrote, which the eval never measured, so
-   * they keep their effort unless `headless` is on.
+   * they keep their effort unless `headless` is on. A chat that Orca opens is
+   * an SDK session that a person can type into, like an Orca terminal tab, so it
+   * counts as interactive.
    */
   function isActive(): boolean {
     return mode !== 'off' && (config.headless || isInteractive !== false)
@@ -1693,7 +1699,8 @@ export function register(on: On, options: PluginOptions): void {
   }
 
   on('session.start', async ($, e, next) => {
-    isInteractive = e.isInteractive
+    isOrcaChat = !e.isInteractive && await hostOf($).isOrcaChat().catch(() => false)
+    isInteractive = e.isInteractive || isOrcaChat
     resetSession()
 
     const result = await next(e)
@@ -2055,6 +2062,7 @@ export function register(on: On, options: PluginOptions): void {
         assessed_floor: turn.assessedFloor,
         task_notification: turn.taskNotification,
         origin: turn.startedBy?.origin,
+        ...(isOrcaChat ? { orca_chat: true } : {}),
         decided: turn.firstDecision?.level,
         unheld: turn.firstDecision?.unheld,
         context_answer: turn.firstDecision?.rawContext,

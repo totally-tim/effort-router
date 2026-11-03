@@ -30,6 +30,7 @@ import {
   systemOneUrlOf,
 } from '../hooks/classify'
 import { CHOICES, type Choice, type Probabilities, isLevel, pickOf, rankOf } from '../hooks/policy'
+import { entrypointsOf } from './sessions'
 
 const HOME = homedir()
 const PROJECTS = join(HOME, '.claude', 'projects')
@@ -136,10 +137,10 @@ const MACHINE_TEXT = /^\s*(<(command-name|command-message|local-command|task-not
 
 /**
  * Interactive sessions only: headless runs (`claude -p`, the SDKs) carry
- * prompts that tools wrote, not a person.
+ * prompts that tools wrote, not a person. A chat that Orca opened counts.
  */
 function isInteractive(line: Record<string, unknown>): boolean {
-  return line.entrypoint === 'cli'
+  return entrypointsOf(String(line.sessionId)).includes(String(line.entrypoint))
 }
 
 function contentOf(line: Record<string, unknown>): unknown {

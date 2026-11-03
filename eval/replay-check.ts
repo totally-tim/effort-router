@@ -22,6 +22,22 @@ const user = (text: string, n: number) => ({ type: 'user', entrypoint: 'cli', cw
 const assistant = (id: string, blocks: unknown[], n: number) => ({ type: 'assistant', timestamp: at(n), effort: 'high', message: { id, content: blocks, usage: { input_tokens: 10, output_tokens: 20 } } })
 
 describe('historical replay boundaries', () => {
+  test("an Orca chat's SDK prompts count only when its decision log marks it", () => fixture([
+    { ...user('Explain the parser.', 0), entrypoint: 'sdk-ts' },
+    assistant('a', [{ type: 'text', text: 'The parser reads tokens.' }], 1),
+  ], async path => {
+    const logDir = mkdtempSync(join(tmpdir(), 'effort-logs-'))
+    const unmarked = mkdtempSync(join(tmpdir(), 'effort-logs-'))
+    try {
+      writeFileSync(join(logDir, 'session.writer.jsonl'), JSON.stringify({ type: 'turn', orca_chat: true }) + '\n')
+      writeFileSync(join(unmarked, 'session.writer.jsonl'), JSON.stringify({ type: 'turn' }) + '\n')
+      assert.equal((await extract(path, 'claude', { logDir })).length, 1)
+      assert.equal((await extract(path, 'claude', { logDir: unmarked })).length, 0)
+    } finally {
+      rmSync(logDir, { recursive: true, force: true })
+      rmSync(unmarked, { recursive: true, force: true })
+    }
+  }))
   test('initial routing excludes later evidence and credential reads stay out of judge evidence', () => fixture([
     user('How does this work?', 0),
     assistant('a', [{ type: 'tool_use', id: 'read', name: 'Read', input: { file_path: '/work/app.ts' } }], 1),

@@ -56,7 +56,7 @@ The router chooses from `low`, `medium`, `high`, and `xhigh`. It picks the lowes
 
 Reading code can resolve that uncertainty and allow a lower level before work begins. Once work begins, the router can only raise effort. Task continuations retain the prior task's effort floor. After `router: needs context`, that floor is the classifier's assessment, not the session effort that the router kept. Messages you send during a turn and repeated tool failures can also raise effort.
 
-Manual effort overrides take precedence; `max` stays manual. The router leaves subagents alone. Routing for `claude -p` and SDK sessions is off unless you enable `headless`.
+Manual effort overrides take precedence; `max` stays manual. The router leaves subagents alone. Routing for `claude -p` and SDK sessions is off unless you enable `headless`. A chat that Orca opens is the exception. It is an SDK session that a person can type into, so the router routes it like an Orca terminal tab, including a chat that `orca agent launch` starts with an agent's prompt. A `claude -p` run that such a chat starts stays off. Orca's chat draws no spinner, so the decision log is where to see the level the router sent.
 
 ## Configuration
 

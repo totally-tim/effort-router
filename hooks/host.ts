@@ -32,6 +32,14 @@ export type Host = {
    */
   systemOneEnv: () => Promise<SystemOneEnv>
   /**
+   * Whether this process is a chat that Orca opened, an SDK session that a
+   * person can type into: `ORCA_STRUCTURED_SESSION=1`, without
+   * `CLAUDE_CODE_CHILD_SESSION`. Claude Code sets that marker for the processes
+   * a session starts, so a `claude -p` run from the chat inherits Orca's
+   * variable but not this answer.
+   */
+  isOrcaChat: () => Promise<boolean>
+  /**
    * The effort level saved for `model` under `modelSettings`, if any.
    */
   savedEffort: (model: string) => Promise<string | undefined>
